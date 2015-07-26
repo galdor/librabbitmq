@@ -107,12 +107,34 @@ int rmq_field_read_table(const void *, size_t,
                          struct rmq_field_table **, size_t *);
 int rmq_field_read_no_value(const void *, size_t, size_t *);
 
+void rmq_field_write_boolean(bool, struct c_buffer *);
+void rmq_field_write_short_short_int(int8_t, struct c_buffer *);
+void rmq_field_write_short_short_uint(uint8_t, struct c_buffer *);
+void rmq_field_write_short_int(int16_t, struct c_buffer *);
+void rmq_field_write_short_uint(uint16_t, struct c_buffer *);
+void rmq_field_write_long_int(int32_t, struct c_buffer *);
+void rmq_field_write_long_uint(uint32_t, struct c_buffer *);
+void rmq_field_write_long_long_int(int64_t, struct c_buffer *);
+void rmq_field_write_long_long_uint(uint64_t, struct c_buffer *);
+void rmq_field_write_float(float, struct c_buffer *);
+void rmq_field_write_double(double, struct c_buffer *);
+void rmq_field_write_decimal(const struct rmq_decimal *, struct c_buffer *);
+void rmq_field_write_short_string(const char *, struct c_buffer *);
+void rmq_field_write_long_string(const char *, struct c_buffer *);
+void rmq_field_write_array(const struct c_ptr_vector *, struct c_buffer *);
+void rmq_field_write_timestamp(uint64_t, struct c_buffer *);
+void rmq_field_write_table(const struct rmq_field_table *, struct c_buffer *);
+void rmq_field_write_no_value(struct c_buffer *);
+
 struct rmq_field *rmq_field_read(const void *, size_t,
                                  enum rmq_field_type, size_t *);
+void rmq_field_write(const struct rmq_field *, struct c_buffer *);
 
-struct rmq_field *rmq_field_read_tagged_value(const void *, size_t, size_t *);
+struct rmq_field *rmq_field_read_tagged(const void *, size_t, size_t *);
+void rmq_field_write_tagged(const struct rmq_field *, struct c_buffer *);
 
 int rmq_fields_read(const void *, size_t, size_t *, ...);
+void rmq_fields_vwrite(struct c_buffer *, va_list);
 void rmq_fields_write(struct c_buffer *, ...);
 
 /* Field table */

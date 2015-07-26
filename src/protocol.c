@@ -475,7 +475,7 @@ rmq_field_read_array(const void *data, size_t size,
         struct rmq_field *field;
         size_t value_size;
 
-        field = rmq_field_read_tagged_value(ptr, len, &value_size);
+        field = rmq_field_read_tagged(ptr, len, &value_size);
         if (!field) {
             for (size_t i = 0; i < c_ptr_vector_length(fields); i++)
                 rmq_field_delete(c_ptr_vector_entry(fields, i));
@@ -559,7 +559,7 @@ rmq_field_read_table(const void *data, size_t size,
         rest -= value_size;
 
         /* Value */
-        value = rmq_field_read_tagged_value(ptr, rest, &value_size);
+        value = rmq_field_read_tagged(ptr, rest, &value_size);
         if (!value) {
             c_free(name);
             rmq_field_table_delete(table);
@@ -585,6 +585,182 @@ int
 rmq_field_read_no_value(const void *data, size_t size, size_t *psz) {
     *psz = 0;
     return 0;
+}
+
+void
+rmq_field_write_boolean(bool value, struct c_buffer *buf) {
+    c_buffer_add(buf, (value ? "\x01" : "\x00"), 1);
+}
+
+void
+rmq_field_write_short_short_int(int8_t value, struct c_buffer *buf) {
+    c_buffer_add(buf, &value, 1);
+}
+
+void
+rmq_field_write_short_short_uint(uint8_t value, struct c_buffer *buf) {
+    c_buffer_add(buf, &value, 1);
+}
+
+void
+rmq_field_write_short_int(int16_t value, struct c_buffer *buf) {
+    uint8_t tmp[2];
+
+    rmq_write_u16((uint16_t)value, tmp);
+    c_buffer_add(buf, tmp, 2);
+}
+
+void
+rmq_field_write_short_uint(uint16_t value, struct c_buffer *buf) {
+    uint8_t tmp[2];
+
+    rmq_write_u16(value, tmp);
+    c_buffer_add(buf, tmp, 2);
+}
+
+void
+rmq_field_write_long_int(int32_t value, struct c_buffer *buf) {
+    uint8_t tmp[4];
+
+    rmq_write_u32((uint32_t)value, tmp);
+    c_buffer_add(buf, tmp, 4);
+}
+
+void
+rmq_field_write_long_uint(uint32_t value, struct c_buffer *buf) {
+    uint8_t tmp[4];
+
+    rmq_write_u32(value, tmp);
+    c_buffer_add(buf, tmp, 4);
+}
+
+void
+rmq_field_write_long_long_int(int64_t value, struct c_buffer *buf) {
+    uint8_t tmp[8];
+
+    rmq_write_u64((uint64_t)value, tmp);
+    c_buffer_add(buf, tmp, 8);
+}
+
+void
+rmq_field_write_long_long_uint(uint64_t value, struct c_buffer *buf) {
+    uint8_t tmp[8];
+
+    rmq_write_u64(value, tmp);
+    c_buffer_add(buf, tmp, 8);
+}
+
+void
+rmq_field_write_float(float value, struct c_buffer *buf) {
+    uint8_t tmp[4];
+
+    memcpy(tmp, &value, 4);
+    c_buffer_add(buf, tmp, 4);
+}
+
+void
+rmq_field_write_double(double value, struct c_buffer *buf) {
+    uint8_t tmp[8];
+
+    memcpy(tmp, &value, 8);
+    c_buffer_add(buf, tmp, 8);
+}
+
+void
+rmq_field_write_decimal(const struct rmq_decimal *value,
+                        struct c_buffer *buf) {
+    /* TODO */
+}
+
+void
+rmq_field_write_short_string(const char *value, struct c_buffer *buf) {
+    size_t string_length;
+    uint8_t length;
+
+    string_length = strlen(value);
+    assert(string_length <= 255);
+
+    length = string_length;
+    c_buffer_add(buf, &length, 1);
+    c_buffer_add(buf, value, string_length);
+}
+
+void
+rmq_field_write_long_string(const char *value, struct c_buffer *buf) {
+    size_t string_length;
+    uint32_t length;
+    uint8_t tmp[4];
+
+    string_length = strlen(value);
+    assert(string_length <= UINT32_MAX);
+
+    length = string_length;
+    rmq_write_u32(length, tmp);
+
+    c_buffer_add(buf, tmp, 4);
+    c_buffer_add(buf, value, string_length);
+}
+
+void
+rmq_field_write_array(const struct c_ptr_vector *value, struct c_buffer *buf) {
+    size_t previous_size, content_size;
+
+    c_buffer_reserve(buf, 4);
+    c_buffer_increase_length(buf, 4);
+    previous_size = c_buffer_length(buf);
+
+    previous_size = c_buffer_length(buf);
+
+    for (size_t i = 0; i < c_ptr_vector_length(value); i++) {
+        struct rmq_field *field;
+
+        field = c_ptr_vector_entry(value, i);
+
+        rmq_field_write_tagged(field, buf);
+    }
+
+    content_size = c_buffer_length(buf) - previous_size;
+    assert(content_size < UINT32_MAX);
+
+    rmq_write_u32((uint32_t)content_size,
+                  c_buffer_data(buf) + previous_size - 4);
+}
+
+void
+rmq_field_write_timestamp(uint64_t value, struct c_buffer *buf) {
+    uint8_t tmp[8];
+
+    rmq_write_u64(value, tmp);
+    c_buffer_add(buf, tmp, 8);
+}
+
+void
+rmq_field_write_table(const struct rmq_field_table *table,
+                      struct c_buffer *buf) {
+    size_t previous_size, content_size;
+
+    c_buffer_reserve(buf, 4);
+    c_buffer_increase_length(buf, 4);
+    previous_size = c_buffer_length(buf);
+
+    for (size_t i = 0; i < c_vector_length(table->pairs); i++) {
+        const struct rmq_field_pair *pair;
+
+        pair = c_vector_entry(table->pairs, i);
+
+        rmq_field_write_short_string(pair->name, buf);
+        rmq_field_write_tagged(pair->value, buf);
+    }
+
+    content_size = c_buffer_length(buf) - previous_size;
+    assert(content_size < UINT32_MAX);
+
+    rmq_write_u32((uint32_t)content_size,
+                  c_buffer_data(buf) + previous_size - 4);
+}
+
+void
+rmq_field_write_no_value(struct c_buffer *buf) {
 }
 
 struct rmq_field *
@@ -686,8 +862,88 @@ rmq_field_read(const void *data, size_t size,
     return field;
 }
 
+void
+rmq_field_write(const struct rmq_field *field, struct c_buffer *buf) {
+    switch (field->type) {
+    case RMQ_FIELD_BOOLEAN:
+        rmq_field_write_boolean(field->u.boolean, buf);
+        break;
+
+    case RMQ_FIELD_SHORT_SHORT_INT:
+        rmq_field_write_short_short_int(field->u.short_short_int, buf);
+        break;
+
+    case RMQ_FIELD_SHORT_SHORT_UINT:
+        rmq_field_write_short_short_uint(field->u.short_short_uint, buf);
+        break;
+
+    case RMQ_FIELD_SHORT_INT:
+        rmq_field_write_short_int(field->u.short_int, buf);
+        break;
+
+    case RMQ_FIELD_SHORT_UINT:
+        rmq_field_write_short_uint(field->u.short_uint, buf);
+        break;
+
+    case RMQ_FIELD_LONG_INT:
+        rmq_field_write_long_int(field->u.long_int, buf);
+        break;
+
+    case RMQ_FIELD_LONG_UINT:
+        rmq_field_write_long_uint(field->u.long_uint, buf);
+        break;
+
+    case RMQ_FIELD_LONG_LONG_INT:
+        rmq_field_write_long_long_int(field->u.long_long_int, buf);
+        break;
+
+    case RMQ_FIELD_LONG_LONG_UINT:
+        rmq_field_write_long_long_uint(field->u.long_long_uint, buf);
+        break;
+
+    case RMQ_FIELD_FLOAT:
+        rmq_field_write_float(field->u.float_value, buf);
+        break;
+
+    case RMQ_FIELD_DOUBLE:
+        rmq_field_write_double(field->u.double_value, buf);
+        break;
+
+    case RMQ_FIELD_DECIMAL:
+        rmq_field_write_decimal(&field->u.decimal, buf);
+        break;
+
+    case RMQ_FIELD_SHORT_STRING:
+        rmq_field_write_short_string(field->u.short_string, buf);
+        break;
+
+    case RMQ_FIELD_LONG_STRING:
+        rmq_field_write_long_string(field->u.long_string, buf);
+        break;
+
+    case RMQ_FIELD_ARRAY:
+        rmq_field_write_array(field->u.array, buf);
+        break;
+
+    case RMQ_FIELD_TIMESTAMP:
+        rmq_field_write_timestamp(field->u.timestamp, buf);
+        break;
+
+    case RMQ_FIELD_TABLE:
+        rmq_field_write_table(field->u.table, buf);
+        break;
+
+    case RMQ_FIELD_NO_VALUE:
+        rmq_field_write_no_value(buf);
+        break;
+
+    case RMQ_FIELD_END:
+        assert(false);
+    }
+}
+
 struct rmq_field *
-rmq_field_read_tagged_value(const void *data, size_t size, size_t *psz) {
+rmq_field_read_tagged(const void *data, size_t size, size_t *psz) {
     struct rmq_field *field;
     const uint8_t *ptr;
     size_t len;
@@ -820,6 +1076,36 @@ rmq_field_read_tagged_value(const void *data, size_t size, size_t *psz) {
 
     *psz = size - len;
     return field;
+}
+
+void
+rmq_field_write_tagged(const struct rmq_field *field, struct c_buffer *buf) {
+    static char tags[] = {
+        [RMQ_FIELD_BOOLEAN]          = 't',
+        [RMQ_FIELD_SHORT_SHORT_INT]  = 'b',
+        [RMQ_FIELD_SHORT_SHORT_UINT] = 'B',
+        [RMQ_FIELD_SHORT_INT]        = 'U',
+        [RMQ_FIELD_SHORT_UINT]       = 'u',
+        [RMQ_FIELD_LONG_INT]         = 'I',
+        [RMQ_FIELD_LONG_UINT]        = 'i',
+        [RMQ_FIELD_LONG_LONG_INT]    = 'L',
+        [RMQ_FIELD_LONG_LONG_UINT]   = 'l',
+        [RMQ_FIELD_FLOAT]            = 'f',
+        [RMQ_FIELD_DOUBLE]           = 'd',
+        [RMQ_FIELD_DECIMAL]          = 'D',
+        [RMQ_FIELD_SHORT_STRING]     = 's',
+        [RMQ_FIELD_LONG_STRING]      = 'S',
+        [RMQ_FIELD_ARRAY]            = 'A',
+        [RMQ_FIELD_TIMESTAMP]        = 'T',
+        [RMQ_FIELD_TABLE]            = 'F',
+        [RMQ_FIELD_NO_VALUE]         = 'V',
+    };
+    static size_t nb_tags = sizeof(tags);
+
+    assert(field->type < nb_tags);
+
+    c_buffer_add(buf, &tags[field->type], 1);
+    rmq_field_write(field, buf);
 }
 
 int
@@ -1031,8 +1317,102 @@ error:
 }
 
 void
+rmq_fields_vwrite(struct c_buffer *buf, va_list ap) {
+    for(;;) {
+        enum rmq_field_type type;
+
+        type = va_arg(ap, enum rmq_field_type);
+        if (type == RMQ_FIELD_END)
+            break;
+
+        switch (type) {
+        case RMQ_FIELD_BOOLEAN:
+            rmq_field_write_boolean(va_arg(ap, int), buf);
+            break;
+
+        case RMQ_FIELD_SHORT_SHORT_INT:
+            rmq_field_write_short_short_int(va_arg(ap, int32_t), buf);
+            break;
+
+        case RMQ_FIELD_SHORT_SHORT_UINT:
+            rmq_field_write_short_short_uint(va_arg(ap, uint32_t), buf);
+            break;
+
+        case RMQ_FIELD_SHORT_INT:
+            rmq_field_write_short_int(va_arg(ap, int32_t), buf);
+            break;
+
+        case RMQ_FIELD_SHORT_UINT:
+            rmq_field_write_short_uint(va_arg(ap, uint32_t), buf);
+            break;
+
+        case RMQ_FIELD_LONG_INT:
+            rmq_field_write_long_int(va_arg(ap, int32_t), buf);
+            break;
+
+        case RMQ_FIELD_LONG_UINT:
+            rmq_field_write_long_uint(va_arg(ap, uint32_t), buf);
+            break;
+
+        case RMQ_FIELD_LONG_LONG_INT:
+            rmq_field_write_long_long_int(va_arg(ap, int64_t), buf);
+            break;
+
+        case RMQ_FIELD_LONG_LONG_UINT:
+            rmq_field_write_long_long_uint(va_arg(ap, uint64_t), buf);
+            break;
+
+        case RMQ_FIELD_FLOAT:
+            rmq_field_write_float(va_arg(ap, double), buf);
+            break;
+
+        case RMQ_FIELD_DOUBLE:
+            rmq_field_write_double(va_arg(ap, double), buf);
+            break;
+
+        case RMQ_FIELD_DECIMAL:
+            rmq_field_write_decimal(va_arg(ap, struct rmq_decimal *), buf);
+            break;
+
+        case RMQ_FIELD_SHORT_STRING:
+            rmq_field_write_short_string(va_arg(ap, const char *), buf);
+            break;
+
+        case RMQ_FIELD_LONG_STRING:
+            rmq_field_write_long_string(va_arg(ap, const char *), buf);
+            break;
+
+        case RMQ_FIELD_ARRAY:
+            rmq_field_write_array(va_arg(ap, const struct c_ptr_vector *), buf);
+            break;
+
+        case RMQ_FIELD_TIMESTAMP:
+            rmq_field_write_timestamp(va_arg(ap, uint64_t), buf);
+            break;
+
+        case RMQ_FIELD_TABLE:
+            rmq_field_write_table(va_arg(ap, const struct rmq_field_table *),
+                                 buf);
+            break;
+
+        case RMQ_FIELD_NO_VALUE:
+            rmq_field_write_no_value(buf);
+            break;
+
+        case RMQ_FIELD_END:
+            assert(false);
+            break;
+        }
+    }
+}
+
+void
 rmq_fields_write(struct c_buffer *buf, ...) {
-    /* TODO */
+    va_list ap;
+
+    va_start(ap, buf);
+    rmq_fields_vwrite(buf, ap);
+    va_end(ap);
 }
 
 /* ---------------------------------------------------------------------------
