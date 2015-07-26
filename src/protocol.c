@@ -1578,6 +1578,17 @@ rmq_method_frame_read(struct rmq_method_frame *method,
     return 0;
 }
 
+void
+rmq_method_frame_write(struct rmq_method_frame *frame, struct c_buffer *buf) {
+    uint8_t tmp[4];
+
+    rmq_write_u16(frame->class_id, tmp);
+    rmq_write_u16(frame->method_id, tmp + 2);
+
+    c_buffer_add(buf, tmp, 4);
+    c_buffer_add(buf, frame->args, frame->args_sz);
+}
+
 /* ---------------------------------------------------------------------------
  *  Internals
  * ------------------------------------------------------------------------ */

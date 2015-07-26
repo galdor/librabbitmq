@@ -103,24 +103,38 @@ rmq_client_send_frame(struct rmq_client *client, enum rmq_frame_type type,
 }
 
 void
-rmq_client_send_method(struct rmq_client *client, enum rmq_method method) {
+rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
     struct rmq_method_frame method_frame;
     uint16_t channel;
-    const uint8_t *data;
-    size_t size;
+    struct c_buffer *args_buf, *buf;
+    va_list ap;
 
+    /* Args */
+    args_buf = c_buffer_new();
+
+    va_start(ap, method);
+    rmq_fields_vwrite(args_buf, ap);
+    va_end(ap);
+
+    /* Method frame */
     rmq_method_frame_init(&method_frame);
 
     method_frame.class_id = method >> 16;
     method_frame.method_id = method & 0x0000ffff;
+    method_frame.args = c_buffer_data(args_buf);
+    method_frame.args_sz = c_buffer_length(args_buf);
 
-    /* TODO arguments */
+    /* Frame */
+    buf = c_buffer_new();
+    rmq_method_frame_write(&method_frame, buf);
 
     channel = 0; /* TODO */
-    data = NULL; /* TODO */
-    size = 0; /* TODO */
 
-    rmq_client_send_frame(client, RMQ_FRAME_TYPE_METHOD, channel, data, size);
+    rmq_client_send_frame(client, RMQ_FRAME_TYPE_METHOD, channel,
+                          c_buffer_data(buf), c_buffer_length(buf));
+
+    c_buffer_delete(args_buf);
+    c_buffer_delete(buf);
 }
 
 static void
@@ -342,8 +356,9 @@ static int
 rmq_client_on_method_connection_start(struct rmq_client *client,
                                       const void *data, size_t size) {
     uint8_t version_major, version_minor;
-    struct rmq_field_table *server_properties;
+    struct rmq_field_table *server_properties, *client_properties;
     char *mechanisms, *locales;
+    const char *mechanism, *response, *locale;
 
     if (client->state != RMQ_CLIENT_STATE_CONNECTED) {
         c_set_error("unexpected method");
@@ -362,12 +377,25 @@ rmq_client_on_method_connection_start(struct rmq_client *client,
         return -1;
     }
 
+    /* Response */
+    client_properties = rmq_field_table_new();
+    mechanism = "PLAIN"; /* TODO */
+    response = "TODO"; /* TODO credentials */
+    locale = "en_US"; /* TODO */
+
+    rmq_client_send_method(client, RMQ_METHOD_CONNECTION_START_OK,
+                           RMQ_FIELD_TABLE, client_properties,
+                           RMQ_FIELD_SHORT_STRING, mechanism,
+                           RMQ_FIELD_LONG_STRING, response,
+                           RMQ_FIELD_SHORT_STRING, locale,
+                           RMQ_FIELD_END);
+
+    rmq_field_table_delete(client_properties);
+
+    client->state = RMQ_CLIENT_STATE_START_RECEIVED;
+
     c_free(mechanisms);
     c_free(locales);
     rmq_field_table_delete(server_properties);
-
-    /* TODO send Connection.Start-Ok method */
-
-    client->state = RMQ_CLIENT_STATE_START_RECEIVED;
     return 0;
 }

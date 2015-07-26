@@ -209,6 +209,7 @@ struct rmq_method_frame {
 
 void rmq_method_frame_init(struct rmq_method_frame *);
 int rmq_method_frame_read(struct rmq_method_frame *, const struct rmq_frame *);
+void rmq_method_frame_write(struct rmq_method_frame *, struct c_buffer *);
 
 /* ---------------------------------------------------------------------------
  *  Client
@@ -235,6 +236,6 @@ struct rmq_client {
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,
                            uint16_t, const void *, size_t);
-void rmq_client_send_method(struct rmq_client *, enum rmq_method);
+void rmq_client_send_method(struct rmq_client *, enum rmq_method, ...);
 
 #endif
