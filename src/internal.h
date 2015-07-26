@@ -52,9 +52,9 @@ enum rmq_field_type {
     RMQ_FIELD_TIMESTAMP,
     RMQ_FIELD_TABLE,
     RMQ_FIELD_NO_VALUE,
-
-    RMQ_FIELD_END,
 };
+
+#define RMQ_FIELD_END 0xffff
 
 const char *rmq_field_type_to_string(enum rmq_field_type);
 

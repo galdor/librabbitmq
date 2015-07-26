@@ -111,7 +111,6 @@ rmq_field_delete(struct rmq_field *field) {
         break;
 
     case RMQ_FIELD_NO_VALUE:
-    case RMQ_FIELD_END:
         break;
     }
 
@@ -849,9 +848,6 @@ rmq_field_read(const void *data, size_t size,
     case RMQ_FIELD_NO_VALUE:
         ret = rmq_field_read_no_value(data, size, psz);
         break;
-
-    case RMQ_FIELD_END:
-        assert(false);
     }
 
     if (ret == -1) {
@@ -936,9 +932,6 @@ rmq_field_write(const struct rmq_field *field, struct c_buffer *buf) {
     case RMQ_FIELD_NO_VALUE:
         rmq_field_write_no_value(buf);
         break;
-
-    case RMQ_FIELD_END:
-        assert(false);
     }
 }
 
@@ -1128,7 +1121,7 @@ rmq_fields_read(const void *data, size_t size, size_t *psz, ...) {
         int ret;
 
         type = va_arg(ap, enum rmq_field_type);
-        if (type == RMQ_FIELD_END)
+        if ((int)type == RMQ_FIELD_END)
             break;
 
         switch (type) {
@@ -1229,10 +1222,6 @@ rmq_fields_read(const void *data, size_t size, size_t *psz, ...) {
         case RMQ_FIELD_NO_VALUE:
             ret = rmq_field_read_no_value(ptr, len, &field_size);
             break;
-
-        case RMQ_FIELD_END:
-            assert(false);
-            break;
         }
 
         if (ret == -1)
@@ -1259,7 +1248,7 @@ error:
         char **pstring;
 
         type = va_arg(ap, enum rmq_field_type);
-        if (type == RMQ_FIELD_END)
+        if ((int)type == RMQ_FIELD_END)
             break;
 
         switch (type) {
@@ -1305,10 +1294,6 @@ error:
 
         case RMQ_FIELD_NO_VALUE:
             break;
-
-        case RMQ_FIELD_END:
-            assert(false);
-            break;
         }
     }
     va_end(ap);
@@ -1322,7 +1307,7 @@ rmq_fields_vwrite(struct c_buffer *buf, va_list ap) {
         enum rmq_field_type type;
 
         type = va_arg(ap, enum rmq_field_type);
-        if (type == RMQ_FIELD_END)
+        if ((int)type == RMQ_FIELD_END)
             break;
 
         switch (type) {
@@ -1397,10 +1382,6 @@ rmq_fields_vwrite(struct c_buffer *buf, va_list ap) {
 
         case RMQ_FIELD_NO_VALUE:
             rmq_field_write_no_value(buf);
-            break;
-
-        case RMQ_FIELD_END:
-            assert(false);
             break;
         }
     }
