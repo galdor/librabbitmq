@@ -400,6 +400,15 @@ rmq_client_on_method(struct rmq_client *client,
                      frame->class_id, frame->method_id,
                      method_string ? method_string : "unknown");
 
+    if (client->state == RMQ_CLIENT_STATE_CLOSING
+     && method != RMQ_METHOD_CONNECTION_CLOSE_OK) {
+        rmq_client_trace(client, "ignoring method %u.%u %s since "
+                         "connection is being closed",
+                         frame->class_id, frame->method_id,
+                         method_string ? method_string : "unknown");
+        return 0;
+    }
+
     switch (method) {
 #define RMQ_HANDLER(method_, function_)                               \
     case RMQ_METHOD_##method_:                                        \
