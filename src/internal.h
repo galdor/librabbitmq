@@ -222,6 +222,28 @@ void rmq_method_frame_init(struct rmq_method_frame *);
 int rmq_method_frame_read(struct rmq_method_frame *, const struct rmq_frame *);
 void rmq_method_frame_write(struct rmq_method_frame *, struct c_buffer *);
 
+/* Reply codes */
+enum rmq_reply_code {
+    RMQ_REPLY_CODE_SUCCESS             = 200,
+    RMQ_REPLY_CODE_CONTENT_TOO_LARGE   = 311,
+    RMQ_REPLY_CODE_NO_CONSUMERS        = 313,
+    RMQ_REPLY_CODE_CONNECTION_FORCED   = 320,
+    RMQ_REPLY_CODE_INVALID_PATH        = 402,
+    RMQ_REPLY_CODE_ACCESS_REFUSED      = 403,
+    RMQ_REPLY_CODE_NOT_FOUND           = 404,
+    RMQ_REPLY_CODE_RESOURCE_LOCKED     = 405,
+    RMQ_REPLY_CODE_PRECONDITION_FAILED = 406,
+    RMQ_REPLY_CODE_FRAME_ERROR         = 501,
+    RMQ_REPLY_CODE_SYNTAX_ERROR        = 502,
+    RMQ_REPLY_CODE_COMMAND_INVALID     = 503,
+    RMQ_REPLY_CODE_CHANNEL_ERROR       = 504,
+    RMQ_REPLY_CODE_UNEXPECTED_FRAME    = 505,
+    RMQ_REPLY_CODE_RESOURCE_ERROR      = 506,
+    RMQ_REPLY_CODE_NOT_ALLOWED         = 530,
+    RMQ_REPLY_CODE_NOT_IMPLEMENTED     = 540,
+    RMQ_REPLY_CODE_INTERNAL_ERROR      = 541,
+};
+
 /* ---------------------------------------------------------------------------
  *  Client
  * ------------------------------------------------------------------------ */
@@ -232,6 +254,7 @@ enum rmq_client_state {
     RMQ_CLIENT_STATE_TUNE_RECEIVED,
     RMQ_CLIENT_STATE_READY,
     RMQ_CLIENT_STATE_VHOST_OPEN,
+    RMQ_CLIENT_STATE_CLOSING,
 };
 
 struct rmq_client {
@@ -251,5 +274,9 @@ struct rmq_client {
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,
                            uint16_t, const void *, size_t);
 void rmq_client_send_method(struct rmq_client *, enum rmq_method, ...);
+
+void rmq_client_connection_close(struct rmq_client *,
+                                 enum rmq_reply_code, const char *, ...)
+    __attribute__ ((format(printf, 3, 4)));
 
 #endif

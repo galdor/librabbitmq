@@ -43,6 +43,8 @@ static int rmq_client_on_method_connection_tune(struct rmq_client *,
                                                 const void *, size_t);
 static int rmq_client_on_method_connection_open_ok(struct rmq_client *,
                                                    const void *, size_t);
+static int rmq_client_on_method_connection_close_ok(struct rmq_client *,
+                                                    const void *, size_t);
 
 struct rmq_client *
 rmq_client_new(struct io_base *io_base) {
@@ -125,7 +127,14 @@ rmq_client_connect(struct rmq_client *client,
 
 void
 rmq_client_disconnect(struct rmq_client *client) {
-    return io_tcp_client_disconnect(client->tcp_client);
+    if (io_tcp_client_is_connected(client->tcp_client)) {
+        rmq_client_connection_close(client, RMQ_REPLY_CODE_SUCCESS, "goodbye");
+
+        /* TODO Timeout in case the server never sends Connection.Close-Ok and
+         * does not close the connection */
+    } else {
+        io_tcp_client_disconnect(client->tcp_client);
+    }
 }
 
 void
@@ -184,6 +193,28 @@ rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
     c_buffer_delete(buf);
 }
 
+void
+rmq_client_connection_close(struct rmq_client *client,
+                            enum rmq_reply_code code, const char *fmt, ...) {
+    char text[256];
+    va_list ap;
+
+    assert(client->state != RMQ_CLIENT_STATE_DISCONNECTED);
+
+    va_start(ap, fmt);
+    vsnprintf(text, sizeof(text), fmt, ap);
+    va_end(ap);
+
+    rmq_client_send_method(client, RMQ_METHOD_CONNECTION_CLOSE,
+                           RMQ_FIELD_SHORT_UINT, code,
+                           RMQ_FIELD_SHORT_STRING, text,
+                           RMQ_FIELD_SHORT_UINT, 0, /* class id */
+                           RMQ_FIELD_SHORT_UINT, 0, /* method id */
+                           RMQ_FIELD_END);
+
+    client->state = RMQ_CLIENT_STATE_CLOSING;
+}
+
 static void
 rmq_client_signal_event(struct rmq_client *client,
                         enum rmq_client_event event, void *arg) {
@@ -227,7 +258,7 @@ rmq_client_fatal(struct rmq_client *client, const char *fmt, ...) {
     va_end(ap);
 
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_ERROR, buf);
-    rmq_client_disconnect(client);
+    io_tcp_client_disconnect(client->tcp_client);
 }
 
 static void
@@ -380,6 +411,7 @@ rmq_client_on_method(struct rmq_client *client,
     RMQ_HANDLER(CONNECTION_START, connection_start);
     RMQ_HANDLER(CONNECTION_TUNE, connection_tune);
     RMQ_HANDLER(CONNECTION_OPEN_OK, connection_open_ok);
+    RMQ_HANDLER(CONNECTION_CLOSE_OK, connection_close_ok);
 
 #undef RMQ_HANDLER
 
@@ -512,5 +544,18 @@ rmq_client_on_method_connection_open_ok(struct rmq_client *client,
     client->state = RMQ_CLIENT_STATE_READY;
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_READY, NULL);
 
+    return 0;
+}
+
+static int
+rmq_client_on_method_connection_close_ok(struct rmq_client *client,
+                                         const void *data, size_t size) {
+
+    if (client->state != RMQ_CLIENT_STATE_CLOSING) {
+        c_set_error("unexpected method");
+        return -1;
+    }
+
+    io_tcp_client_disconnect(client->tcp_client);
     return 0;
 }
