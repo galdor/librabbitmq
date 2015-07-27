@@ -27,6 +27,24 @@ static void rmq_write_u32(uint32_t, uint8_t *);
 static void rmq_write_u64(uint64_t, uint8_t *);
 
 /* ---------------------------------------------------------------------------
+ *  Long string
+ * ------------------------------------------------------------------------ */
+void
+rmq_long_string_init(struct rmq_long_string *string) {
+    memset(string, 0, sizeof(struct rmq_long_string));
+}
+
+void
+rmq_long_string_free(struct rmq_long_string *string) {
+    if (!string)
+        return;
+
+    c_free(string->ptr);
+
+    memset(string, 0, sizeof(struct rmq_long_string));
+}
+
+/* ---------------------------------------------------------------------------
  *  Field values
  * ------------------------------------------------------------------------ */
 const char *
@@ -94,7 +112,7 @@ rmq_field_delete(struct rmq_field *field) {
         break;
 
     case RMQ_FIELD_LONG_STRING:
-        c_free(field->u.long_string);
+        rmq_long_string_free(&field->u.long_string);
         break;
 
     case RMQ_FIELD_ARRAY:
@@ -414,7 +432,7 @@ rmq_field_read_short_string(const void *data, size_t size,
 
 int
 rmq_field_read_long_string(const void *data, size_t size,
-                           char **pvalue, size_t *psz) {
+                           struct rmq_long_string *pvalue, size_t *psz) {
     const uint8_t *ptr;
     size_t len;
     uint32_t string_length;
@@ -437,7 +455,8 @@ rmq_field_read_long_string(const void *data, size_t size,
         return -1;
     }
 
-    *pvalue = c_strndup((const char *)ptr, string_length);
+    pvalue->ptr = c_memdup(ptr, string_length);
+    pvalue->len = string_length;
 
     ptr += string_length;
     len -= string_length;
@@ -685,19 +704,16 @@ rmq_field_write_short_string(const char *value, struct c_buffer *buf) {
 }
 
 void
-rmq_field_write_long_string(const char *value, struct c_buffer *buf) {
-    size_t string_length;
-    uint32_t length;
+rmq_field_write_long_string(const struct rmq_long_string *value,
+                            struct c_buffer *buf) {
     uint8_t tmp[4];
 
-    string_length = strlen(value);
-    assert(string_length <= UINT32_MAX);
+    assert(value->len <= UINT32_MAX);
 
-    length = string_length;
-    rmq_write_u32(length, tmp);
+    rmq_write_u32((uint32_t)value->len, tmp);
 
     c_buffer_add(buf, tmp, 4);
-    c_buffer_add(buf, value, string_length);
+    c_buffer_add(buf, value->ptr, value->len);
 }
 
 void
@@ -914,7 +930,7 @@ rmq_field_write(const struct rmq_field *field, struct c_buffer *buf) {
         break;
 
     case RMQ_FIELD_LONG_STRING:
-        rmq_field_write_long_string(field->u.long_string, buf);
+        rmq_field_write_long_string(&field->u.long_string, buf);
         break;
 
     case RMQ_FIELD_ARRAY:
@@ -1198,7 +1214,8 @@ rmq_fields_read(const void *data, size_t size, size_t *psz, ...) {
 
         case RMQ_FIELD_LONG_STRING:
             ret = rmq_field_read_long_string(ptr, len,
-                                             va_arg(ap, char **),
+                                             va_arg(ap,
+                                                    struct rmq_long_string *),
                                              &field_size);
             break;
 
@@ -1364,7 +1381,9 @@ rmq_fields_vwrite(struct c_buffer *buf, va_list ap) {
             break;
 
         case RMQ_FIELD_LONG_STRING:
-            rmq_field_write_long_string(va_arg(ap, const char *), buf);
+            rmq_field_write_long_string(va_arg(ap,
+                                               const struct rmq_long_string *),
+                                        buf);
             break;
 
         case RMQ_FIELD_ARRAY:

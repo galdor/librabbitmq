@@ -32,6 +32,15 @@ struct rmq_decimal {
     uint32_t value;
 };
 
+/* Long string */
+struct rmq_long_string {
+    char *ptr;
+    size_t len;
+};
+
+void rmq_long_string_init(struct rmq_long_string *);
+void rmq_long_string_free(struct rmq_long_string *);
+
 /* Field values */
 enum rmq_field_type {
     RMQ_FIELD_BOOLEAN,
@@ -75,7 +84,7 @@ struct rmq_field {
         double double_value;
         struct rmq_decimal decimal;
         char *short_string;
-        char *long_string;
+        struct rmq_long_string long_string;
         struct c_ptr_vector *array;
         uint64_t timestamp;
         struct rmq_field_table *table;
@@ -99,7 +108,8 @@ int rmq_field_read_double(const void *, size_t, double *, size_t *);
 int rmq_field_read_decimal(const void *, size_t,
                            struct rmq_decimal *, size_t *);
 int rmq_field_read_short_string(const void *, size_t, char **, size_t *);
-int rmq_field_read_long_string(const void *, size_t, char **, size_t *);
+int rmq_field_read_long_string(const void *, size_t,
+                               struct rmq_long_string *, size_t *);
 int rmq_field_read_array(const void *, size_t,
                          struct c_ptr_vector **, size_t *);
 int rmq_field_read_timestamp(const void *, size_t, uint64_t *, size_t *);
@@ -120,7 +130,8 @@ void rmq_field_write_float(float, struct c_buffer *);
 void rmq_field_write_double(double, struct c_buffer *);
 void rmq_field_write_decimal(const struct rmq_decimal *, struct c_buffer *);
 void rmq_field_write_short_string(const char *, struct c_buffer *);
-void rmq_field_write_long_string(const char *, struct c_buffer *);
+void rmq_field_write_long_string(const struct rmq_long_string *,
+                                 struct c_buffer *);
 void rmq_field_write_array(const struct c_ptr_vector *, struct c_buffer *);
 void rmq_field_write_timestamp(uint64_t, struct c_buffer *);
 void rmq_field_write_table(const struct rmq_field_table *, struct c_buffer *);
