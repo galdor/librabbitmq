@@ -37,20 +37,6 @@ static int rmq_client_on_frame(struct rmq_client *, const struct rmq_frame *);
 static int rmq_client_on_method(struct rmq_client *,
                                 const struct rmq_method_frame *);
 
-static int rmq_client_on_method_connection_start(struct rmq_client *,
-                                                 const void *, size_t);
-static int rmq_client_on_method_connection_tune(struct rmq_client *,
-                                                const void *, size_t);
-static int rmq_client_on_method_connection_open_ok(struct rmq_client *,
-                                                   const void *, size_t);
-static int rmq_client_on_method_connection_close(struct rmq_client *,
-                                                 const void *, size_t);
-static int rmq_client_on_method_connection_close_ok(struct rmq_client *,
-                                                    const void *, size_t);
-
-static int rmq_client_on_method_channel_open_ok(struct rmq_client *,
-                                                const void *, size_t);
-
 struct rmq_client *
 rmq_client_new(struct io_base *io_base) {
     struct rmq_client *client;
@@ -387,70 +373,15 @@ rmq_client_on_frame(struct rmq_client *client, const struct rmq_frame *frame) {
     return 0;
 }
 
-static int
-rmq_client_on_method(struct rmq_client *client,
-                     const struct rmq_method_frame *frame) {
-    const char *method_string;
-    enum rmq_method method;
+/* ---------------------------------------------------------------------------
+ *  Method handlers
+ * ------------------------------------------------------------------------ */
+#define RMQ_METHOD_HANDLER(name_)                               \
+    static int                                                  \
+    rmq_client_on_method_##name_(struct rmq_client *client,     \
+                                 const void *data, size_t size)
 
-    method = RMQ_METHOD(frame->class_id, frame->method_id);
-    method_string = rmq_method_to_string(method);
-
-    rmq_client_trace(client, "method %u.%u %s",
-                     frame->class_id, frame->method_id,
-                     method_string ? method_string : "unknown");
-
-    if (client->state == RMQ_CLIENT_STATE_CLOSING
-     && method != RMQ_METHOD_CONNECTION_CLOSE
-     && method != RMQ_METHOD_CONNECTION_CLOSE_OK) {
-        rmq_client_trace(client, "ignoring method %u.%u %s since "
-                         "connection is being closed",
-                         frame->class_id, frame->method_id,
-                         method_string ? method_string : "unknown");
-        return 0;
-    }
-
-    switch (method) {
-#define RMQ_HANDLER(method_, function_)                               \
-    case RMQ_METHOD_##method_:                                        \
-        if (rmq_client_on_method_##function_(client,                  \
-                                             frame->args,             \
-                                             frame->args_sz) == -1) { \
-            goto error;                                               \
-        }                                                             \
-        break;
-
-    RMQ_HANDLER(CONNECTION_START, connection_start);
-    RMQ_HANDLER(CONNECTION_TUNE, connection_tune);
-    RMQ_HANDLER(CONNECTION_OPEN_OK, connection_open_ok);
-    RMQ_HANDLER(CONNECTION_CLOSE, connection_close);
-    RMQ_HANDLER(CONNECTION_CLOSE_OK, connection_close_ok);
-
-    RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
-
-#undef RMQ_HANDLER
-
-    default:
-        c_set_error("unhandled method");
-        goto error;
-    }
-
-    return 0;
-
-error:
-    if (method_string) {
-        c_set_error("%s: %s", method_string, c_get_error());
-    } else {
-        c_set_error("%u.%u: %s", frame->class_id, frame->method_id,
-                    c_get_error());
-    }
-
-    return -1;
-}
-
-static int
-rmq_client_on_method_connection_start(struct rmq_client *client,
-                                      const void *data, size_t size) {
+RMQ_METHOD_HANDLER(connection_start) {
     uint8_t version_major, version_minor;
     struct rmq_field_table *server_properties, *client_properties;
     struct rmq_long_string mechanisms, locales;
@@ -511,9 +442,7 @@ rmq_client_on_method_connection_start(struct rmq_client *client,
     return 0;
 }
 
-static int
-rmq_client_on_method_connection_tune(struct rmq_client *client,
-                                     const void *data, size_t size) {
+RMQ_METHOD_HANDLER(connection_tune) {
     uint16_t channel_max, heartbeat;
     uint32_t frame_max;
 
@@ -552,10 +481,7 @@ rmq_client_on_method_connection_tune(struct rmq_client *client,
     return 0;
 }
 
-static int
-rmq_client_on_method_connection_open_ok(struct rmq_client *client,
-                                        const void *data, size_t size) {
-
+RMQ_METHOD_HANDLER(connection_open_ok) {
     client->state = RMQ_CLIENT_STATE_CONNECTION_OPEN;
 
     /* Open a channel */
@@ -567,9 +493,7 @@ rmq_client_on_method_connection_open_ok(struct rmq_client *client,
     return 0;
 }
 
-static int
-rmq_client_on_method_connection_close(struct rmq_client *client,
-                                      const void *data, size_t size) {
+RMQ_METHOD_HANDLER(connection_close) {
     rmq_client_send_method(client, RMQ_METHOD_CONNECTION_CLOSE_OK,
                            RMQ_FIELD_END);
 
@@ -577,9 +501,7 @@ rmq_client_on_method_connection_close(struct rmq_client *client,
     return 0;
 }
 
-static int
-rmq_client_on_method_connection_close_ok(struct rmq_client *client,
-                                         const void *data, size_t size) {
+RMQ_METHOD_HANDLER(connection_close_ok) {
 
     if (client->state != RMQ_CLIENT_STATE_CLOSING) {
         c_set_error("unexpected method");
@@ -590,9 +512,7 @@ rmq_client_on_method_connection_close_ok(struct rmq_client *client,
     return 0;
 }
 
-static int
-rmq_client_on_method_channel_open_ok(struct rmq_client *client,
-                                     const void *data, size_t size) {
+RMQ_METHOD_HANDLER(channel_open_ok) {
     if (client->state != RMQ_CLIENT_STATE_CONNECTION_OPEN) {
         c_set_error("unexpected method");
         return -1;
@@ -602,4 +522,70 @@ rmq_client_on_method_channel_open_ok(struct rmq_client *client,
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_READY, NULL);
 
     return 0;
+}
+
+#undef RMQ_METHOD_HANDLER
+
+/* ---------------------------------------------------------------------------
+ *  Generic method handler
+ * ------------------------------------------------------------------------ */
+static int
+rmq_client_on_method(struct rmq_client *client,
+                     const struct rmq_method_frame *frame) {
+    const char *method_string;
+    enum rmq_method method;
+
+    method = RMQ_METHOD(frame->class_id, frame->method_id);
+    method_string = rmq_method_to_string(method);
+
+    rmq_client_trace(client, "method %u.%u %s",
+                     frame->class_id, frame->method_id,
+                     method_string ? method_string : "unknown");
+
+    if (client->state == RMQ_CLIENT_STATE_CLOSING
+     && method != RMQ_METHOD_CONNECTION_CLOSE
+     && method != RMQ_METHOD_CONNECTION_CLOSE_OK) {
+        rmq_client_trace(client, "ignoring method %u.%u %s since "
+                         "connection is being closed",
+                         frame->class_id, frame->method_id,
+                         method_string ? method_string : "unknown");
+        return 0;
+    }
+
+    switch (method) {
+#define RMQ_HANDLER(method_, function_)                               \
+    case RMQ_METHOD_##method_:                                        \
+        if (rmq_client_on_method_##function_(client,                  \
+                                             frame->args,             \
+                                             frame->args_sz) == -1) { \
+            goto error;                                               \
+        }                                                             \
+        break;
+
+    RMQ_HANDLER(CONNECTION_START, connection_start);
+    RMQ_HANDLER(CONNECTION_TUNE, connection_tune);
+    RMQ_HANDLER(CONNECTION_OPEN_OK, connection_open_ok);
+    RMQ_HANDLER(CONNECTION_CLOSE, connection_close);
+    RMQ_HANDLER(CONNECTION_CLOSE_OK, connection_close_ok);
+
+    RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
+
+#undef RMQ_HANDLER
+
+    default:
+        c_set_error("unhandled method");
+        goto error;
+    }
+
+    return 0;
+
+error:
+    if (method_string) {
+        c_set_error("%s: %s", method_string, c_get_error());
+    } else {
+        c_set_error("%u.%u: %s", frame->class_id, frame->method_id,
+                    c_get_error());
+    }
+
+    return -1;
 }
