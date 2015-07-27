@@ -43,6 +43,8 @@ static int rmq_client_on_method_connection_tune(struct rmq_client *,
                                                 const void *, size_t);
 static int rmq_client_on_method_connection_open_ok(struct rmq_client *,
                                                    const void *, size_t);
+static int rmq_client_on_method_connection_close(struct rmq_client *,
+                                                 const void *, size_t);
 static int rmq_client_on_method_connection_close_ok(struct rmq_client *,
                                                     const void *, size_t);
 
@@ -411,6 +413,7 @@ rmq_client_on_method(struct rmq_client *client,
     RMQ_HANDLER(CONNECTION_START, connection_start);
     RMQ_HANDLER(CONNECTION_TUNE, connection_tune);
     RMQ_HANDLER(CONNECTION_OPEN_OK, connection_open_ok);
+    RMQ_HANDLER(CONNECTION_CLOSE, connection_close);
     RMQ_HANDLER(CONNECTION_CLOSE_OK, connection_close_ok);
 
 #undef RMQ_HANDLER
@@ -544,6 +547,16 @@ rmq_client_on_method_connection_open_ok(struct rmq_client *client,
     client->state = RMQ_CLIENT_STATE_READY;
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_READY, NULL);
 
+    return 0;
+}
+
+static int
+rmq_client_on_method_connection_close(struct rmq_client *client,
+                                      const void *data, size_t size) {
+    rmq_client_send_method(client, RMQ_METHOD_CONNECTION_CLOSE_OK,
+                           RMQ_FIELD_END);
+
+    io_tcp_client_disconnect(client->tcp_client);
     return 0;
 }
 

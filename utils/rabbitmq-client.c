@@ -153,7 +153,6 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
 
     case RMQ_CLIENT_EVENT_READY:
         printf("ready\n");
-        rmq_client_disconnect(rmqu.client);
         break;
 
     case RMQ_CLIENT_EVENT_ERROR:
