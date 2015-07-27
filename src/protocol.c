@@ -1555,6 +1555,13 @@ rmq_method_to_string(enum rmq_method method) {
         [RMQ_METHOD_CONNECTION_OPEN_OK]   = "Connection.Open-Ok",
         [RMQ_METHOD_CONNECTION_CLOSE]     = "Connection.Close",
         [RMQ_METHOD_CONNECTION_CLOSE_OK]  = "Connection.Close-Ok",
+
+        [RMQ_METHOD_CHANNEL_OPEN]         = "Channel.Open",
+        [RMQ_METHOD_CHANNEL_OPEN_OK]      = "Channel.Open-Ok",
+        [RMQ_METHOD_CHANNEL_FLOW]         = "Channel.Flow",
+        [RMQ_METHOD_CHANNEL_FLOW_OK]      = "Channel.Flow-Ok",
+        [RMQ_METHOD_CHANNEL_CLOSE]        = "Channel.Close",
+        [RMQ_METHOD_CHANNEL_CLOSE_OK]     = "Channel.Close-Ok",
     };
     static size_t nb_strings = sizeof(strings) / sizeof(strings[0]);
 

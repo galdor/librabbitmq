@@ -205,6 +205,13 @@ enum rmq_method {
     RMQ_METHOD_CONNECTION_OPEN_OK   = RMQ_METHOD(10, 41),
     RMQ_METHOD_CONNECTION_CLOSE     = RMQ_METHOD(10, 50),
     RMQ_METHOD_CONNECTION_CLOSE_OK  = RMQ_METHOD(10, 51),
+
+    RMQ_METHOD_CHANNEL_OPEN         = RMQ_METHOD(20, 10),
+    RMQ_METHOD_CHANNEL_OPEN_OK      = RMQ_METHOD(20, 11),
+    RMQ_METHOD_CHANNEL_FLOW         = RMQ_METHOD(20, 20),
+    RMQ_METHOD_CHANNEL_FLOW_OK      = RMQ_METHOD(20, 21),
+    RMQ_METHOD_CHANNEL_CLOSE        = RMQ_METHOD(20, 40),
+    RMQ_METHOD_CHANNEL_CLOSE_OK     = RMQ_METHOD(20, 41),
 };
 
 const char *rmq_method_to_string(enum rmq_method);
@@ -252,8 +259,8 @@ enum rmq_client_state {
     RMQ_CLIENT_STATE_CONNECTED,
     RMQ_CLIENT_STATE_START_RECEIVED,
     RMQ_CLIENT_STATE_TUNE_RECEIVED,
+    RMQ_CLIENT_STATE_CONNECTION_OPEN,
     RMQ_CLIENT_STATE_READY,
-    RMQ_CLIENT_STATE_VHOST_OPEN,
     RMQ_CLIENT_STATE_CLOSING,
 };
 
@@ -269,6 +276,8 @@ struct rmq_client {
     char *login;
     char *password;
     char *vhost;
+
+    uint16_t channel;
 };
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,

@@ -48,6 +48,9 @@ static int rmq_client_on_method_connection_close(struct rmq_client *,
 static int rmq_client_on_method_connection_close_ok(struct rmq_client *,
                                                     const void *, size_t);
 
+static int rmq_client_on_method_channel_open_ok(struct rmq_client *,
+                                                const void *, size_t);
+
 struct rmq_client *
 rmq_client_new(struct io_base *io_base) {
     struct rmq_client *client;
@@ -163,7 +166,6 @@ rmq_client_send_frame(struct rmq_client *client, enum rmq_frame_type type,
 void
 rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
     struct rmq_method_frame method_frame;
-    uint16_t channel;
     struct c_buffer *args_buf, *buf;
     va_list ap;
 
@@ -186,9 +188,7 @@ rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
     buf = c_buffer_new();
     rmq_method_frame_write(&method_frame, buf);
 
-    channel = 0; /* TODO */
-
-    rmq_client_send_frame(client, RMQ_FRAME_TYPE_METHOD, channel,
+    rmq_client_send_frame(client, RMQ_FRAME_TYPE_METHOD, client->channel,
                           c_buffer_data(buf), c_buffer_length(buf));
 
     c_buffer_delete(args_buf);
@@ -401,6 +401,7 @@ rmq_client_on_method(struct rmq_client *client,
                      method_string ? method_string : "unknown");
 
     if (client->state == RMQ_CLIENT_STATE_CLOSING
+     && method != RMQ_METHOD_CONNECTION_CLOSE
      && method != RMQ_METHOD_CONNECTION_CLOSE_OK) {
         rmq_client_trace(client, "ignoring method %u.%u %s since "
                          "connection is being closed",
@@ -424,6 +425,8 @@ rmq_client_on_method(struct rmq_client *client,
     RMQ_HANDLER(CONNECTION_OPEN_OK, connection_open_ok);
     RMQ_HANDLER(CONNECTION_CLOSE, connection_close);
     RMQ_HANDLER(CONNECTION_CLOSE_OK, connection_close_ok);
+
+    RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
 
 #undef RMQ_HANDLER
 
@@ -553,9 +556,14 @@ static int
 rmq_client_on_method_connection_open_ok(struct rmq_client *client,
                                         const void *data, size_t size) {
 
-    client->state = RMQ_CLIENT_STATE_READY;
-    rmq_client_signal_event(client, RMQ_CLIENT_EVENT_READY, NULL);
+    client->state = RMQ_CLIENT_STATE_CONNECTION_OPEN;
 
+    /* Open a channel */
+    client->channel = 1;
+
+    rmq_client_send_method(client, RMQ_METHOD_CHANNEL_OPEN,
+                           RMQ_FIELD_SHORT_STRING, "", /* deprecated */
+                           RMQ_FIELD_END);
     return 0;
 }
 
@@ -579,5 +587,19 @@ rmq_client_on_method_connection_close_ok(struct rmq_client *client,
     }
 
     io_tcp_client_disconnect(client->tcp_client);
+    return 0;
+}
+
+static int
+rmq_client_on_method_channel_open_ok(struct rmq_client *client,
+                                     const void *data, size_t size) {
+    if (client->state != RMQ_CLIENT_STATE_CONNECTION_OPEN) {
+        c_set_error("unexpected method");
+        return -1;
+    }
+
+    client->state = RMQ_CLIENT_STATE_READY;
+    rmq_client_signal_event(client, RMQ_CLIENT_EVENT_READY, NULL);
+
     return 0;
 }
