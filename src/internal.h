@@ -243,6 +243,9 @@ struct rmq_client {
 
     rmq_client_event_cb event_cb;
     void *event_cb_arg;
+
+    char *login;
+    char *password;
 };
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,

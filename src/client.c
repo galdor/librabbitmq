@@ -60,6 +60,9 @@ rmq_client_delete(struct rmq_client *client) {
 
     io_tcp_client_delete(client->tcp_client);
 
+    c_free(client->login);
+    c_free(client->password);
+
     c_free0(client, sizeof(struct rmq_client));
 }
 
@@ -70,9 +73,37 @@ rmq_client_set_event_cb(struct rmq_client *client,
     client->event_cb_arg = arg;
 }
 
+void
+rmq_client_set_credentials(struct rmq_client *client,
+                           const char *login, const char *password) {
+    c_free(client->login);
+    if (login) {
+        client->login = c_strdup(login);
+    } else {
+        client->login = NULL;
+    }
+
+    c_free(client->password);
+    if (password) {
+        client->password = c_strdup(password);
+    } else {
+        client->password = NULL;
+    }
+}
+
 int
 rmq_client_connect(struct rmq_client *client,
                    const char *host, uint16_t port) {
+    if (!client->login) {
+        c_set_error("missing login");
+        return -1;
+    }
+
+    if (!client->password) {
+        c_set_error("missing password");
+        return -1;
+    }
+
     return io_tcp_client_connect(client->tcp_client, host, port);
 }
 
@@ -357,8 +388,10 @@ rmq_client_on_method_connection_start(struct rmq_client *client,
                                       const void *data, size_t size) {
     uint8_t version_major, version_minor;
     struct rmq_field_table *server_properties, *client_properties;
-    char *mechanisms, *locales;
-    const char *mechanism, *response, *locale;
+    struct rmq_long_string mechanisms, locales;
+    struct rmq_long_string response;
+    size_t login_sz, password_sz;
+    const char *mechanism, *locale;
 
     if (client->state != RMQ_CLIENT_STATE_CONNECTED) {
         c_set_error("unexpected method");
@@ -377,25 +410,39 @@ rmq_client_on_method_connection_start(struct rmq_client *client,
         return -1;
     }
 
+    rmq_long_string_free(&mechanisms);
+    rmq_long_string_free(&locales);
+    rmq_field_table_delete(server_properties);
+
     /* Response */
     client_properties = rmq_field_table_new();
+
     mechanism = "PLAIN"; /* TODO */
-    response = "TODO"; /* TODO credentials */
+
+    login_sz = strlen(client->login);
+    password_sz = strlen(client->password);
+
+    rmq_long_string_init(&response);
+    response.len = 1 + login_sz + 1 + password_sz;
+    response.ptr = c_malloc(response.len);
+    response.ptr[0] = '\0';
+    memcpy(response.ptr + 1, client->login, login_sz);
+    response.ptr[1 + login_sz] = '\0';
+    memcpy(response.ptr + 1 + login_sz + 1, client->password, password_sz);
+
     locale = "en_US"; /* TODO */
 
     rmq_client_send_method(client, RMQ_METHOD_CONNECTION_START_OK,
                            RMQ_FIELD_TABLE, client_properties,
                            RMQ_FIELD_SHORT_STRING, mechanism,
-                           RMQ_FIELD_LONG_STRING, response,
+                           RMQ_FIELD_LONG_STRING, &response,
                            RMQ_FIELD_SHORT_STRING, locale,
                            RMQ_FIELD_END);
 
     rmq_field_table_delete(client_properties);
+    rmq_long_string_free(&response);
 
     client->state = RMQ_CLIENT_STATE_START_RECEIVED;
 
-    c_free(mechanisms);
-    c_free(locales);
-    rmq_field_table_delete(server_properties);
     return 0;
 }

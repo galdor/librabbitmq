@@ -38,6 +38,8 @@ struct rmq_client *rmq_client_new(struct io_base *);
 void rmq_client_delete(struct rmq_client *);
 
 void rmq_client_set_event_cb(struct rmq_client *, rmq_client_event_cb, void *);
+void rmq_client_set_credentials(struct rmq_client *,
+                                const char *, const char *);
 
 int rmq_client_connect(struct rmq_client *, const char *, uint16_t);
 void rmq_client_disconnect(struct rmq_client *);

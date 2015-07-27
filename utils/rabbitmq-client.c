@@ -80,10 +80,7 @@ main(int argc, char **argv) {
     rmqu.client = rmq_client_new(rmqu.io_base);
 
     rmq_client_set_event_cb(rmqu.client, rmqu_on_client_event, NULL);
-
-#if 0
     rmq_client_set_credentials(rmqu.client, user, password);
-#endif
 
     if (rmq_client_connect(rmqu.client, host, port) == -1) {
         rmqu_die("cannot connect to %s:%d: %s",
