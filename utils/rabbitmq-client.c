@@ -42,7 +42,7 @@ int
 main(int argc, char **argv) {
     struct c_command_line *cmdline;
     const char *host, *port_string;
-    const char *user, *password;
+    const char *user, *password, *vhost;
     uint16_t port;
 
     /* Command line */
@@ -51,9 +51,11 @@ main(int argc, char **argv) {
     c_command_line_add_option(cmdline, "p", "port",
                               "the port to connect to", "port", "5672");
     c_command_line_add_option(cmdline, "u", "user",
-                              "the user name", "name", NULL);
+                              "the user name", "name", "guest");
     c_command_line_add_option(cmdline, "w", "password",
-                              "the password", "string", NULL);
+                              "the password", "string", "guest");
+    c_command_line_add_option(cmdline, "v", "vhost",
+                              "the virtual host", "vhost", "/");
 
     c_command_line_add_argument(cmdline, "the host to connect to", "host");
 
@@ -67,6 +69,7 @@ main(int argc, char **argv) {
 
     user = c_command_line_option_value(cmdline, "user");
     password = c_command_line_option_value(cmdline, "password");
+    vhost = c_command_line_option_value(cmdline, "vhost");
 
     /* IO base */
     rmqu.io_base = io_base_new();
@@ -81,6 +84,7 @@ main(int argc, char **argv) {
 
     rmq_client_set_event_cb(rmqu.client, rmqu_on_client_event, NULL);
     rmq_client_set_credentials(rmqu.client, user, password);
+    rmq_client_set_vhost(rmqu.client, vhost);
 
     if (rmq_client_connect(rmqu.client, host, port) == -1) {
         rmqu_die("cannot connect to %s:%d: %s",
@@ -145,6 +149,10 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
     case RMQ_CLIENT_EVENT_CONN_CLOSED:
         printf("connection closed\n");
         rmqu.do_exit = true;
+        break;
+
+    case RMQ_CLIENT_EVENT_READY:
+        printf("ready\n");
         break;
 
     case RMQ_CLIENT_EVENT_ERROR:

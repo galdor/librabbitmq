@@ -26,6 +26,7 @@ enum rmq_client_event {
     RMQ_CLIENT_EVENT_CONN_ESTABLISHED,
     RMQ_CLIENT_EVENT_CONN_FAILED,
     RMQ_CLIENT_EVENT_CONN_CLOSED,
+    RMQ_CLIENT_EVENT_READY,
 
     RMQ_CLIENT_EVENT_ERROR,
     RMQ_CLIENT_EVENT_TRACE,
@@ -40,6 +41,7 @@ void rmq_client_delete(struct rmq_client *);
 void rmq_client_set_event_cb(struct rmq_client *, rmq_client_event_cb, void *);
 void rmq_client_set_credentials(struct rmq_client *,
                                 const char *, const char *);
+void rmq_client_set_vhost(struct rmq_client *, const char *);
 
 int rmq_client_connect(struct rmq_client *, const char *, uint16_t);
 void rmq_client_disconnect(struct rmq_client *);

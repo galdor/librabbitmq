@@ -36,8 +36,13 @@ static void rmq_client_on_data(struct rmq_client *);
 static int rmq_client_on_frame(struct rmq_client *, const struct rmq_frame *);
 static int rmq_client_on_method(struct rmq_client *,
                                 const struct rmq_method_frame *);
+
 static int rmq_client_on_method_connection_start(struct rmq_client *,
                                                  const void *, size_t);
+static int rmq_client_on_method_connection_tune(struct rmq_client *,
+                                                const void *, size_t);
+static int rmq_client_on_method_connection_open_ok(struct rmq_client *,
+                                                   const void *, size_t);
 
 struct rmq_client *
 rmq_client_new(struct io_base *io_base) {
@@ -49,6 +54,10 @@ rmq_client_new(struct io_base *io_base) {
 
     client->tcp_client = io_tcp_client_new(io_base,
                                            rmq_client_on_tcp_event, client);
+
+    client->login = c_strdup("guest");
+    client->password = c_strdup("guest");
+    client->vhost = c_strdup("/");
 
     return client;
 }
@@ -62,6 +71,7 @@ rmq_client_delete(struct rmq_client *client) {
 
     c_free(client->login);
     c_free(client->password);
+    c_free(client->vhost);
 
     c_free0(client, sizeof(struct rmq_client));
 }
@@ -89,6 +99,12 @@ rmq_client_set_credentials(struct rmq_client *client,
     } else {
         client->password = NULL;
     }
+}
+
+void
+rmq_client_set_vhost(struct rmq_client *client, const char *vhost) {
+    c_free(client->vhost);
+    client->vhost = c_strdup(vhost);
 }
 
 int
@@ -362,6 +378,8 @@ rmq_client_on_method(struct rmq_client *client,
         break;
 
     RMQ_HANDLER(CONNECTION_START, connection_start);
+    RMQ_HANDLER(CONNECTION_TUNE, connection_tune);
+    RMQ_HANDLER(CONNECTION_OPEN_OK, connection_open_ok);
 
 #undef RMQ_HANDLER
 
@@ -443,6 +461,56 @@ rmq_client_on_method_connection_start(struct rmq_client *client,
     rmq_long_string_free(&response);
 
     client->state = RMQ_CLIENT_STATE_START_RECEIVED;
+    return 0;
+}
+
+static int
+rmq_client_on_method_connection_tune(struct rmq_client *client,
+                                     const void *data, size_t size) {
+    uint16_t channel_max, heartbeat;
+    uint32_t frame_max;
+
+    if (client->state != RMQ_CLIENT_STATE_START_RECEIVED) {
+        c_set_error("unexpected method");
+        return -1;
+    }
+
+    if (rmq_fields_read(data, size, NULL,
+                        RMQ_FIELD_SHORT_UINT, &channel_max,
+                        RMQ_FIELD_LONG_UINT, &frame_max,
+                        RMQ_FIELD_SHORT_UINT, &heartbeat,
+                        RMQ_FIELD_END) == -1) {
+        /* TODO error 505 */
+        c_set_error("invalid arguments: %s", c_get_error());
+        return -1;
+    }
+
+    /* Response */
+    channel_max = 1; /* We do not support multiplexing for the moment */
+
+    rmq_client_send_method(client, RMQ_METHOD_CONNECTION_TUNE_OK,
+                           RMQ_FIELD_SHORT_UINT, channel_max,
+                           RMQ_FIELD_LONG_UINT, frame_max,
+                           RMQ_FIELD_SHORT_UINT, heartbeat,
+                           RMQ_FIELD_END);
+
+    client->state = RMQ_CLIENT_STATE_TUNE_RECEIVED;
+
+    /* Select a vhost */
+    rmq_client_send_method(client, RMQ_METHOD_CONNECTION_OPEN,
+                           RMQ_FIELD_SHORT_STRING, client->vhost,
+                           RMQ_FIELD_SHORT_STRING, "",    /* deprecated */
+                           RMQ_FIELD_SHORT_SHORT_UINT, 0, /* deprecated */
+                           RMQ_FIELD_END);
+    return 0;
+}
+
+static int
+rmq_client_on_method_connection_open_ok(struct rmq_client *client,
+                                        const void *data, size_t size) {
+
+    client->state = RMQ_CLIENT_STATE_READY;
+    rmq_client_signal_event(client, RMQ_CLIENT_EVENT_READY, NULL);
 
     return 0;
 }

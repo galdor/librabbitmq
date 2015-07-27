@@ -229,7 +229,6 @@ enum rmq_client_state {
     RMQ_CLIENT_STATE_DISCONNECTED,
     RMQ_CLIENT_STATE_CONNECTED,
     RMQ_CLIENT_STATE_START_RECEIVED,
-    RMQ_CLIENT_STATE_CHALLENGE_RECEIVED,
     RMQ_CLIENT_STATE_TUNE_RECEIVED,
     RMQ_CLIENT_STATE_READY,
     RMQ_CLIENT_STATE_VHOST_OPEN,
@@ -246,6 +245,7 @@ struct rmq_client {
 
     char *login;
     char *password;
+    char *vhost;
 };
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,
