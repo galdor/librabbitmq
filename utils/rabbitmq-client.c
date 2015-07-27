@@ -79,7 +79,7 @@ main(int argc, char **argv) {
     if (io_base_watch_signal(rmqu.io_base, SIGTERM, rmqu_on_signal, NULL) == -1)
         rmqu_die("cannot watch signal: %s", c_get_error());
 
-    /* IMAP client */
+    /* Client */
     rmqu.client = rmq_client_new(rmqu.io_base);
 
     rmq_client_set_event_cb(rmqu.client, rmqu_on_client_event, NULL);
@@ -97,9 +97,18 @@ main(int argc, char **argv) {
             rmqu_die("cannot read events: %s", c_get_error());
     }
 
-    /* Cleaning */
+    /* Shutdown */
     rmq_client_disconnect(rmqu.client);
 
+    io_base_unwatch_signal(rmqu.io_base, SIGINT);
+    io_base_unwatch_signal(rmqu.io_base, SIGTERM);
+
+    while (io_base_has_watchers(rmqu.io_base)) {
+        if (io_base_read_events(rmqu.io_base) == -1)
+            rmqu_die("cannot read events: %s", c_get_error());
+    }
+
+    /* Cleaning */
     rmq_client_delete(rmqu.client);
     io_base_delete(rmqu.io_base);
 
