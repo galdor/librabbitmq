@@ -167,6 +167,44 @@ void rmq_field_table_delete(struct rmq_field_table *);
 void rmq_field_table_append_nocopy(struct rmq_field_table *,
                                    char *, struct rmq_field *);
 
+/* Message properties */
+struct rmq_properties {
+    uint16_t mask; /* enum rmq_msg_property */
+
+    char *content_type;
+    char *content_encoding;
+    struct rmq_field_table *headers;
+    enum rmq_delivery_mode delivery_mode;
+    uint8_t priority;
+    char *correlation_id;
+    char *reply_to;
+    char *expiration;
+    char *message_id;
+    uint64_t timestamp;
+    char *type;
+    char *user_id;
+    char *app_id;
+};
+
+void rmq_properties_init(struct rmq_properties *);
+void rmq_properties_free(struct rmq_properties *);
+
+void rmq_properties_set_content_type(struct rmq_properties *, const char *);
+void rmq_properties_set_content_encoding(struct rmq_properties *, const char *);
+void rmq_properties_append_header_nocopy(struct rmq_properties *,
+                                         const char *, struct rmq_field *);
+void rmq_properties_set_delivery_mode(struct rmq_properties *,
+                                      enum rmq_delivery_mode);
+void rmq_properties_set_priority(struct rmq_properties *, uint8_t);
+void rmq_properties_set_correlation_id(struct rmq_properties *, const char *);
+void rmq_properties_set_reply_to(struct rmq_properties *, const char *);
+void rmq_properties_set_expiration(struct rmq_properties *, const char *);
+void rmq_properties_set_message_id(struct rmq_properties *, const char *);
+void rmq_properties_set_timestamp(struct rmq_properties *, uint64_t);
+void rmq_properties_set_type(struct rmq_properties *, const char *);
+void rmq_properties_set_user_id(struct rmq_properties *, const char *);
+void rmq_properties_set_app_id(struct rmq_properties *, const char *);
+
 /* Frame */
 #define RMQ_FRAME_END ((uint8_t)0xce)
 
@@ -188,30 +226,58 @@ struct rmq_frame {
 };
 
 void rmq_frame_init(struct rmq_frame *);
+
 int rmq_frame_read(struct rmq_frame *, const void *, size_t, size_t *);
-void rmq_frame_write(struct rmq_frame *, struct c_buffer *);
+void rmq_frame_write(const struct rmq_frame *, struct c_buffer *);
 
 /* Method */
 #define RMQ_METHOD(class_, id_) (unsigned int)(((class_) << 16) | (id_))
 
-enum rmq_method {
-    RMQ_METHOD_CONNECTION_START     = RMQ_METHOD(10, 10),
-    RMQ_METHOD_CONNECTION_START_OK  = RMQ_METHOD(10, 11),
-    RMQ_METHOD_CONNECTION_SECURE    = RMQ_METHOD(10, 20),
-    RMQ_METHOD_CONNECTION_SECURE_OK = RMQ_METHOD(10, 21),
-    RMQ_METHOD_CONNECTION_TUNE      = RMQ_METHOD(10, 30),
-    RMQ_METHOD_CONNECTION_TUNE_OK   = RMQ_METHOD(10, 31),
-    RMQ_METHOD_CONNECTION_OPEN      = RMQ_METHOD(10, 40),
-    RMQ_METHOD_CONNECTION_OPEN_OK   = RMQ_METHOD(10, 41),
-    RMQ_METHOD_CONNECTION_CLOSE     = RMQ_METHOD(10, 50),
-    RMQ_METHOD_CONNECTION_CLOSE_OK  = RMQ_METHOD(10, 51),
+enum rmq_class {
+    RMQ_CLASS_CONNECTION = 10,
+    RMQ_CLASS_CHANNEL    = 20,
+    RMQ_CLASS_EXCHANGE   = 40,
+    RMQ_CLASS_QUEUE      = 50,
+    RMQ_CLASS_BASIC      = 60,
+    RMQ_CLASS_TX         = 90,
+};
 
-    RMQ_METHOD_CHANNEL_OPEN         = RMQ_METHOD(20, 10),
-    RMQ_METHOD_CHANNEL_OPEN_OK      = RMQ_METHOD(20, 11),
-    RMQ_METHOD_CHANNEL_FLOW         = RMQ_METHOD(20, 20),
-    RMQ_METHOD_CHANNEL_FLOW_OK      = RMQ_METHOD(20, 21),
-    RMQ_METHOD_CHANNEL_CLOSE        = RMQ_METHOD(20, 40),
-    RMQ_METHOD_CHANNEL_CLOSE_OK     = RMQ_METHOD(20, 41),
+enum rmq_method {
+    RMQ_METHOD_CONNECTION_START     = RMQ_METHOD(RMQ_CLASS_CONNECTION,  10),
+    RMQ_METHOD_CONNECTION_START_OK  = RMQ_METHOD(RMQ_CLASS_CONNECTION,  11),
+    RMQ_METHOD_CONNECTION_SECURE    = RMQ_METHOD(RMQ_CLASS_CONNECTION,  20),
+    RMQ_METHOD_CONNECTION_SECURE_OK = RMQ_METHOD(RMQ_CLASS_CONNECTION,  21),
+    RMQ_METHOD_CONNECTION_TUNE      = RMQ_METHOD(RMQ_CLASS_CONNECTION,  30),
+    RMQ_METHOD_CONNECTION_TUNE_OK   = RMQ_METHOD(RMQ_CLASS_CONNECTION,  31),
+    RMQ_METHOD_CONNECTION_OPEN      = RMQ_METHOD(RMQ_CLASS_CONNECTION,  40),
+    RMQ_METHOD_CONNECTION_OPEN_OK   = RMQ_METHOD(RMQ_CLASS_CONNECTION,  41),
+    RMQ_METHOD_CONNECTION_CLOSE     = RMQ_METHOD(RMQ_CLASS_CONNECTION,  50),
+    RMQ_METHOD_CONNECTION_CLOSE_OK  = RMQ_METHOD(RMQ_CLASS_CONNECTION,  51),
+
+    RMQ_METHOD_CHANNEL_OPEN         = RMQ_METHOD(RMQ_CLASS_CHANNEL,  10),
+    RMQ_METHOD_CHANNEL_OPEN_OK      = RMQ_METHOD(RMQ_CLASS_CHANNEL,  11),
+    RMQ_METHOD_CHANNEL_FLOW         = RMQ_METHOD(RMQ_CLASS_CHANNEL,  20),
+    RMQ_METHOD_CHANNEL_FLOW_OK      = RMQ_METHOD(RMQ_CLASS_CHANNEL,  21),
+    RMQ_METHOD_CHANNEL_CLOSE        = RMQ_METHOD(RMQ_CLASS_CHANNEL,  40),
+    RMQ_METHOD_CHANNEL_CLOSE_OK     = RMQ_METHOD(RMQ_CLASS_CHANNEL,  41),
+
+    RMQ_METHOD_BASIC_QOS            = RMQ_METHOD(RMQ_CLASS_BASIC,  10),
+    RMQ_METHOD_BASIC_QOS_OK         = RMQ_METHOD(RMQ_CLASS_BASIC,  11),
+    RMQ_METHOD_BASIC_CONSUME        = RMQ_METHOD(RMQ_CLASS_BASIC,  20),
+    RMQ_METHOD_BASIC_CONSUME_OK     = RMQ_METHOD(RMQ_CLASS_BASIC,  21),
+    RMQ_METHOD_BASIC_CANCEL         = RMQ_METHOD(RMQ_CLASS_BASIC,  30),
+    RMQ_METHOD_BASIC_CANCEL_OK      = RMQ_METHOD(RMQ_CLASS_BASIC,  31),
+    RMQ_METHOD_BASIC_PUBLISH        = RMQ_METHOD(RMQ_CLASS_BASIC,  40),
+    RMQ_METHOD_BASIC_RETURN         = RMQ_METHOD(RMQ_CLASS_BASIC,  50),
+    RMQ_METHOD_BASIC_DELIVER        = RMQ_METHOD(RMQ_CLASS_BASIC,  60),
+    RMQ_METHOD_BASIC_GET            = RMQ_METHOD(RMQ_CLASS_BASIC,  70),
+    RMQ_METHOD_BASIC_GET_OK         = RMQ_METHOD(RMQ_CLASS_BASIC,  71),
+    RMQ_METHOD_BASIC_GET_EMPTY      = RMQ_METHOD(RMQ_CLASS_BASIC,  72),
+    RMQ_METHOD_BASIC_ACK            = RMQ_METHOD(RMQ_CLASS_BASIC,  80),
+    RMQ_METHOD_BASIC_REJECT         = RMQ_METHOD(RMQ_CLASS_BASIC,  90),
+    RMQ_METHOD_BASIC_RECOVER_ASYNC  = RMQ_METHOD(RMQ_CLASS_BASIC, 100),
+    RMQ_METHOD_BASIC_RECOVER        = RMQ_METHOD(RMQ_CLASS_BASIC, 110),
+    RMQ_METHOD_BASIC_RECOVER_OK     = RMQ_METHOD(RMQ_CLASS_BASIC, 111),
 };
 
 const char *rmq_method_to_string(enum rmq_method);
@@ -226,8 +292,21 @@ struct rmq_method_frame {
 };
 
 void rmq_method_frame_init(struct rmq_method_frame *);
+
 int rmq_method_frame_read(struct rmq_method_frame *, const struct rmq_frame *);
-void rmq_method_frame_write(struct rmq_method_frame *, struct c_buffer *);
+void rmq_method_frame_write(const struct rmq_method_frame *, struct c_buffer *);
+
+/* Header frame */
+struct rmq_header_frame {
+    uint16_t class_id;
+    uint64_t body_size;
+
+    const struct rmq_properties *properties;
+};
+
+void rmq_header_frame_init(struct rmq_header_frame *);
+
+void rmq_header_frame_write(const struct rmq_header_frame *, struct c_buffer *);
 
 /* Reply codes */
 enum rmq_reply_code {
@@ -249,6 +328,17 @@ enum rmq_reply_code {
     RMQ_REPLY_CODE_NOT_ALLOWED         = 530,
     RMQ_REPLY_CODE_NOT_IMPLEMENTED     = 540,
     RMQ_REPLY_CODE_INTERNAL_ERROR      = 541,
+};
+
+/* ---------------------------------------------------------------------------
+ *  Message
+ * ------------------------------------------------------------------------ */
+struct rmq_msg {
+    struct rmq_properties properties;
+
+    void *data;
+    size_t data_sz;
+    bool data_owned;
 };
 
 /* ---------------------------------------------------------------------------
@@ -283,6 +373,9 @@ struct rmq_client {
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,
                            uint16_t, const void *, size_t);
 void rmq_client_send_method(struct rmq_client *, enum rmq_method, ...);
+void rmq_client_send_header(struct rmq_client *, uint16_t, uint64_t,
+                            const struct rmq_properties *);
+void rmq_client_send_body(struct rmq_client *, const void *, size_t);
 
 void rmq_client_connection_close(struct rmq_client *,
                                  enum rmq_reply_code, const char *, ...)

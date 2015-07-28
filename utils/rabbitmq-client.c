@@ -15,6 +15,7 @@
  */
 
 #include <signal.h>
+#include <string.h>
 
 #include <core.h>
 #include <io.h>
@@ -37,6 +38,7 @@ static void rmqu_on_signal(int, void *);
 
 static void rmqu_on_client_event(struct rmq_client *, enum rmq_client_event,
                                  void *, void *);
+static void rmqu_on_client_ready(void);
 
 int
 main(int argc, char **argv) {
@@ -162,6 +164,7 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
 
     case RMQ_CLIENT_EVENT_READY:
         printf("ready\n");
+        rmqu_on_client_ready();
         break;
 
     case RMQ_CLIENT_EVENT_ERROR:
@@ -172,4 +175,18 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
         fprintf(stderr, "%s\n", (const char *)data);
         break;
     }
+}
+
+static void
+rmqu_on_client_ready(void) {
+    struct rmq_msg *msg;
+    const char *string;
+
+    string = "hello world";
+
+    msg = rmq_msg_new();
+    rmq_msg_set_content_type(msg, "text/plain");
+    rmq_msg_set_data_nocopy(msg, (void *)string, strlen(string));
+
+    rmq_client_publish(rmqu.client, msg, "messages", "", RMQ_PUBLISH_DEFAULT);
 }

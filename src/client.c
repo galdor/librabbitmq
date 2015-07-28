@@ -138,7 +138,7 @@ rmq_client_send_frame(struct rmq_client *client, enum rmq_frame_type type,
 
     rmq_frame_init(&frame);
 
-    frame.type = RMQ_FRAME_TYPE_METHOD;
+    frame.type = type;
     frame.channel = channel;
     frame.size = size;
     frame.payload = data;
@@ -182,6 +182,37 @@ rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
 }
 
 void
+rmq_client_send_header(struct rmq_client *client, uint16_t class_id,
+                       uint64_t body_size,
+                       const struct rmq_properties *properties) {
+    struct rmq_header_frame header_frame;
+    struct c_buffer *buf;
+
+    /* Header frame */
+    rmq_header_frame_init(&header_frame);
+
+    header_frame.class_id = class_id;
+    header_frame.body_size = body_size;
+    header_frame.properties = properties;
+
+    /* Frame */
+    buf = c_buffer_new();
+    rmq_header_frame_write(&header_frame, buf);
+
+    rmq_client_send_frame(client, RMQ_FRAME_TYPE_HEADER, client->channel,
+                          c_buffer_data(buf), c_buffer_length(buf));
+
+    c_buffer_delete(buf);
+}
+
+void
+rmq_client_send_body(struct rmq_client *client,
+                     const void *data, size_t size) {
+    rmq_client_send_frame(client, RMQ_FRAME_TYPE_BODY, client->channel,
+                          data, size);
+}
+
+void
 rmq_client_connection_close(struct rmq_client *client,
                             enum rmq_reply_code code, const char *fmt, ...) {
     char text[256];
@@ -201,6 +232,25 @@ rmq_client_connection_close(struct rmq_client *client,
                            RMQ_FIELD_END);
 
     client->state = RMQ_CLIENT_STATE_CLOSING;
+}
+
+void
+rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
+                   const char *exchange,
+                   const char *routing_key, uint32_t options) {
+    rmq_client_send_method(client, RMQ_METHOD_BASIC_PUBLISH,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, exchange,
+                           RMQ_FIELD_SHORT_STRING, routing_key,
+                           RMQ_FIELD_SHORT_SHORT_UINT, (uint8_t)options,
+                           RMQ_FIELD_END);
+
+    rmq_client_send_header(client, RMQ_CLASS_BASIC, msg->data_sz,
+                           &msg->properties);
+
+    rmq_client_send_body(client, msg->data, msg->data_sz);
+
+    rmq_msg_delete(msg);
 }
 
 static void

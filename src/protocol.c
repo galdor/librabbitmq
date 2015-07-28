@@ -1522,7 +1522,7 @@ rmq_frame_read(struct rmq_frame *frame, const void *data, size_t size,
 }
 
 void
-rmq_frame_write(struct rmq_frame *frame, struct c_buffer *buf) {
+rmq_frame_write(const struct rmq_frame *frame, struct c_buffer *buf) {
     uint8_t *ptr;
 
     ptr = c_buffer_reserve(buf, 7 + frame->size + 1);
@@ -1540,7 +1540,7 @@ rmq_frame_write(struct rmq_frame *frame, struct c_buffer *buf) {
 }
 
 /* ---------------------------------------------------------------------------
- *  Method
+ *  Method frame
  * ------------------------------------------------------------------------ */
 const char *
 rmq_method_to_string(enum rmq_method method) {
@@ -1562,6 +1562,24 @@ rmq_method_to_string(enum rmq_method method) {
         [RMQ_METHOD_CHANNEL_FLOW_OK]      = "Channel.Flow-Ok",
         [RMQ_METHOD_CHANNEL_CLOSE]        = "Channel.Close",
         [RMQ_METHOD_CHANNEL_CLOSE_OK]     = "Channel.Close-Ok",
+
+        [RMQ_METHOD_BASIC_QOS]            = "Basic.Qos",
+        [RMQ_METHOD_BASIC_QOS_OK]         = "Basic.Qos-Ok",
+        [RMQ_METHOD_BASIC_CONSUME]        = "Basic.Consume",
+        [RMQ_METHOD_BASIC_CONSUME_OK]     = "Basic.Consume-Ok",
+        [RMQ_METHOD_BASIC_CANCEL]         = "Basic.Cancel",
+        [RMQ_METHOD_BASIC_CANCEL_OK]      = "Basic.Cancel-Ok",
+        [RMQ_METHOD_BASIC_PUBLISH]        = "Basic.Publish",
+        [RMQ_METHOD_BASIC_RETURN]         = "Basic.Return",
+        [RMQ_METHOD_BASIC_DELIVER]        = "Basic.Deliver",
+        [RMQ_METHOD_BASIC_GET]            = "Basic.Get",
+        [RMQ_METHOD_BASIC_GET_OK]         = "Basic.Get-Ok",
+        [RMQ_METHOD_BASIC_GET_EMPTY]      = "Basic.Get-Empty",
+        [RMQ_METHOD_BASIC_ACK]            = "Basic.Ack",
+        [RMQ_METHOD_BASIC_REJECT]         = "Basic.Reject",
+        [RMQ_METHOD_BASIC_RECOVER_ASYNC]  = "Basic.Recover-Async",
+        [RMQ_METHOD_BASIC_RECOVER]        = "Basic.Recover",
+        [RMQ_METHOD_BASIC_RECOVER_OK]     = "Basic.Recover-Ok",
     };
     static size_t nb_strings = sizeof(strings) / sizeof(strings[0]);
 
@@ -1605,7 +1623,8 @@ rmq_method_frame_read(struct rmq_method_frame *method,
 }
 
 void
-rmq_method_frame_write(struct rmq_method_frame *frame, struct c_buffer *buf) {
+rmq_method_frame_write(const struct rmq_method_frame *frame,
+                       struct c_buffer *buf) {
     uint8_t tmp[4];
 
     rmq_write_u16(frame->class_id, tmp);
@@ -1613,6 +1632,73 @@ rmq_method_frame_write(struct rmq_method_frame *frame, struct c_buffer *buf) {
 
     c_buffer_add(buf, tmp, 4);
     c_buffer_add(buf, frame->args, frame->args_sz);
+}
+
+/* ---------------------------------------------------------------------------
+ *  Header frame
+ * ------------------------------------------------------------------------ */
+void
+rmq_header_frame_init(struct rmq_header_frame *header) {
+    memset(header, 0, sizeof(struct rmq_header_frame));
+}
+
+void
+rmq_header_frame_write(const struct rmq_header_frame *header,
+                       struct c_buffer *buf) {
+    const struct rmq_properties *properties;
+    uint8_t *ptr;
+    uint16_t mask;
+
+    properties = header->properties;
+    mask = properties->mask;
+
+    ptr = c_buffer_reserve(buf, 14);
+
+    rmq_write_u16(header->class_id, ptr);
+    rmq_write_u16(0, ptr + 2); /* weight: unused, must be 0 */
+    rmq_write_u64(header->body_size, ptr + 4);
+    rmq_write_u16(mask, ptr + 12);
+
+    c_buffer_increase_length(buf, 14);
+
+    if (mask & RMQ_PROPERTY_CONTENT_TYPE)
+        rmq_field_write_short_string(properties->content_type, buf);
+
+    if (mask & RMQ_PROPERTY_CONTENT_ENCODING)
+        rmq_field_write_short_string(properties->content_encoding, buf);
+
+    if (mask & RMQ_PROPERTY_HEADERS)
+        rmq_field_write_table(properties->headers, buf);
+
+    if (mask & RMQ_PROPERTY_DELIVERY_MODE)
+        rmq_field_write_short_short_uint(properties->delivery_mode, buf);
+
+    if (mask & RMQ_PROPERTY_PRIORITY)
+        rmq_field_write_short_short_uint(properties->priority, buf);
+
+    if (mask & RMQ_PROPERTY_CORRELATION_ID)
+        rmq_field_write_short_string(properties->correlation_id, buf);
+
+    if (mask & RMQ_PROPERTY_REPLY_TO)
+        rmq_field_write_short_string(properties->reply_to, buf);
+
+    if (mask & RMQ_PROPERTY_EXPIRATION)
+        rmq_field_write_short_string(properties->expiration, buf);
+
+    if (mask & RMQ_PROPERTY_MESSAGE_ID)
+        rmq_field_write_short_string(properties->message_id, buf);
+
+    if (mask & RMQ_PROPERTY_TIMESTAMP)
+        rmq_field_write_long_long_uint(properties->timestamp, buf);
+
+    if (mask & RMQ_PROPERTY_TYPE)
+        rmq_field_write_short_string(properties->type, buf);
+
+    if (mask & RMQ_PROPERTY_USER_ID)
+        rmq_field_write_short_string(properties->user_id, buf);
+
+    if (mask & RMQ_PROPERTY_APP_ID)
+        rmq_field_write_short_string(properties->app_id, buf);
 }
 
 /* ---------------------------------------------------------------------------
