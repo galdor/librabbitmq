@@ -16,6 +16,35 @@
 
 #include "internal.h"
 
+/* ---------------------------------------------------------------------------
+ *  Consumer
+ * ------------------------------------------------------------------------ */
+struct rmq_consumer *
+rmq_consumer_new(const char *queue, char *tag) {
+    struct rmq_consumer *consumer;
+
+    consumer = c_malloc0(sizeof(struct rmq_consumer));
+
+    consumer->queue = c_strdup(queue);
+    consumer->tag = tag;
+
+    return consumer;
+}
+
+void
+rmq_consumer_delete(struct rmq_consumer *consumer) {
+    if (!consumer)
+        return;
+
+    c_free(consumer->queue);
+    c_free(consumer->tag);
+
+    c_free0(consumer, sizeof(struct rmq_consumer));
+}
+
+/* ---------------------------------------------------------------------------
+ *  Client
+ * ------------------------------------------------------------------------ */
 static void rmq_client_signal_event(struct rmq_client *,
                                     enum rmq_client_event, void *);
 static void rmq_client_trace(struct rmq_client *, const char *, ...)
@@ -52,11 +81,16 @@ rmq_client_new(struct io_base *io_base) {
     client->password = c_strdup("guest");
     client->vhost = c_strdup("/");
 
+    client->consumers = c_hash_table_new(c_hash_string, c_equal_string);
+
     return client;
 }
 
 void
 rmq_client_delete(struct rmq_client *client) {
+    struct c_hash_table_iterator *it;
+    struct rmq_consumer *consumer;
+
     if (!client)
         return;
 
@@ -65,6 +99,12 @@ rmq_client_delete(struct rmq_client *client) {
     c_free(client->login);
     c_free(client->password);
     c_free(client->vhost);
+
+    it = c_hash_table_iterate(client->consumers);
+    while (c_hash_table_iterator_next(it, NULL, (void **)&consumer) == 1)
+        rmq_consumer_delete(consumer);
+    c_hash_table_iterator_delete(it);
+    c_hash_table_delete(client->consumers);
 
     c_free0(client, sizeof(struct rmq_client));
 }
@@ -256,16 +296,23 @@ rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
 void
 rmq_client_subscribe(struct rmq_client *client, const char *queue,
                      uint8_t options) {
-    const char *tag;
     struct rmq_field_table *arguments;
+    struct rmq_consumer *consumer;
+    char *tag;
 
-    tag = queue;
+    assert(c_hash_table_get(client->consumers, queue, (void **)&consumer) == 0);
+
+    c_asprintf(&tag, "consumer-%d", ++client->consumer_tag_id);
+    consumer = rmq_consumer_new(queue, tag);
+
+    c_hash_table_insert(client->consumers, consumer->queue, consumer);
+
     arguments = rmq_field_table_new();
 
     rmq_client_send_method(client, RMQ_METHOD_BASIC_CONSUME,
                            RMQ_FIELD_SHORT_UINT, 0, /* reserved */
-                           RMQ_FIELD_SHORT_STRING, queue,
-                           RMQ_FIELD_SHORT_STRING, tag,
+                           RMQ_FIELD_SHORT_STRING, consumer->queue,
+                           RMQ_FIELD_SHORT_STRING, consumer->tag,
                            RMQ_FIELD_SHORT_SHORT_UINT, options,
                            RMQ_FIELD_TABLE, arguments,
                            RMQ_FIELD_END);
@@ -274,13 +321,18 @@ rmq_client_subscribe(struct rmq_client *client, const char *queue,
 }
 
 void
-rmq_client_unsubscribe(struct rmq_client *client, const char *queue) {
-    const char *tag;
+rmq_client_unsubscribe(struct rmq_client *client, const char *queue,
+                       uint8_t options) {
+    struct rmq_consumer *consumer;
 
-    tag = queue;
+    assert(c_hash_table_get(client->consumers, queue, (void **)&consumer) == 1);
+
+    c_hash_table_remove(client->consumers, queue);
+    rmq_consumer_delete(consumer);
 
     rmq_client_send_method(client, RMQ_METHOD_BASIC_CANCEL,
-                           RMQ_FIELD_SHORT_STRING, tag,
+                           RMQ_FIELD_SHORT_STRING, consumer->tag,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
                            RMQ_FIELD_END);
 }
 
@@ -363,7 +415,17 @@ rmq_client_on_tcp_event(struct io_tcp_client *tcp_client,
 
 static void
 rmq_client_on_conn_closed(struct rmq_client *client) {
+    struct c_hash_table_iterator *it;
+    struct rmq_consumer *consumer;
+
     client->state = RMQ_CLIENT_STATE_DISCONNECTED;
+
+    it = c_hash_table_iterate(client->consumers);
+    while (c_hash_table_iterator_next(it, NULL, (void **)&consumer) == 1)
+        rmq_consumer_delete(consumer);
+    c_hash_table_iterator_delete(it);
+    c_hash_table_clear(client->consumers);
+
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_CONN_CLOSED, NULL);
 }
 

@@ -159,6 +159,12 @@ enum rmq_subscribe_option {
 };
 
 void rmq_client_subscribe(struct rmq_client *, const char *, uint8_t);
-void rmq_client_unsubscribe(struct rmq_client *, const char *);
+
+enum rmq_unsubscribe_option {
+    RMQ_USUBSCRIBE_DEFAULT   = 0x00,
+    RMQ_USUBSCRIBE_NO_WAIT   = 0x01,
+};
+
+void rmq_client_unsubscribe(struct rmq_client *, const char *, uint8_t);
 
 #endif

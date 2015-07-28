@@ -316,6 +316,23 @@ struct rmq_msg {
 };
 
 /* ---------------------------------------------------------------------------
+ *  Consumer
+ * ------------------------------------------------------------------------ */
+typedef void (*rmq_msg_cb)(struct rmq_client *, const char *, bool,
+                           const struct rmq_msg *, const char *, const char *,
+                           void *);
+struct rmq_consumer {
+    char *queue;
+    char *tag;
+
+    rmq_msg_cb msg_cb;
+    void *msg_cb_arg;
+};
+
+struct rmq_consumer *rmq_consumer_new(const char *, char *);
+void rmq_consumer_delete(struct rmq_consumer *);
+
+/* ---------------------------------------------------------------------------
  *  Client
  * ------------------------------------------------------------------------ */
 enum rmq_client_state {
@@ -342,6 +359,9 @@ struct rmq_client {
     char *vhost;
 
     uint16_t channel;
+
+    struct c_hash_table *consumers;
+    int consumer_tag_id;
 };
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,
