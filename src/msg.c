@@ -61,9 +61,14 @@ rmq_properties_set_content_encoding(struct rmq_properties *properties,
 }
 
 void
-rmq_properties_append_header_nocopy(struct rmq_properties *properties,
-                                    const char *name, struct rmq_field *value) {
-    rmq_field_table_append_nocopy(properties->headers, c_strdup(name), value);
+rmq_properties_add_header_nocopy(struct rmq_properties *properties,
+                                 const char *name, struct rmq_field *value) {
+    properties->mask |= RMQ_PROPERTY_HEADERS;
+
+    if (!properties->headers)
+        properties->headers = rmq_field_table_new();
+
+    rmq_field_table_add_nocopy(properties->headers, c_strdup(name), value);
 }
 
 void
@@ -192,9 +197,9 @@ rmq_msg_set_content_encoding(struct rmq_msg *msg, const char *value) {
 }
 
 void
-rmq_msg_append_header_nocopy(struct rmq_msg *msg,
+rmq_msg_add_header_nocopy(struct rmq_msg *msg,
                              const char *name, struct rmq_field *value) {
-    rmq_properties_append_header_nocopy(&msg->properties, name, value);
+    rmq_properties_add_header_nocopy(&msg->properties, name, value);
 }
 
 void

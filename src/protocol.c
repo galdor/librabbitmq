@@ -135,6 +135,162 @@ rmq_field_delete(struct rmq_field *field) {
     c_free0(field, sizeof(struct rmq_field));
 }
 
+struct rmq_field *
+rmq_field_new_boolean(bool value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_BOOLEAN);
+    field->u.boolean = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_short_short_int(int8_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_SHORT_SHORT_INT);
+    field->u.short_short_int = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_short_short_uint(uint8_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_SHORT_SHORT_UINT);
+    field->u.short_short_uint = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_short_int(int16_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_SHORT_INT);
+    field->u.short_int = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_short_uint(uint16_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_SHORT_UINT);
+    field->u.short_uint = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_long_int(int32_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_LONG_INT);
+    field->u.long_int = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_long_uint(uint32_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_LONG_UINT);
+    field->u.long_uint = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_long_long_int(int64_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_LONG_LONG_INT);
+    field->u.long_long_int = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_long_long_uint(uint64_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_LONG_LONG_UINT);
+    field->u.long_long_uint = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_float(float value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_FLOAT);
+    field->u.float_value = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_double(double value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_DOUBLE);
+    field->u.double_value = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_short_string(const char *value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_SHORT_STRING);
+    field->u.short_string = c_strdup(value);
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_long_string(const void *value, size_t size) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_LONG_STRING);
+    field->u.long_string.ptr = c_memdup(value, size);
+    field->u.long_string.len = size;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_array(void) {
+    return rmq_field_new(RMQ_FIELD_ARRAY);
+}
+
+struct rmq_field *
+rmq_field_new_timestamp(uint64_t value) {
+    struct rmq_field *field;
+
+    field = rmq_field_new(RMQ_FIELD_TIMESTAMP);
+    field->u.timestamp = value;
+
+    return field;
+}
+
+struct rmq_field *
+rmq_field_new_table(void) {
+    return rmq_field_new(RMQ_FIELD_TABLE);
+}
+
+struct rmq_field *
+rmq_field_new_no_value(void) {
+    return rmq_field_new(RMQ_FIELD_NO_VALUE);
+}
+
 int
 rmq_field_read_boolean(const void *data, size_t size,
                        bool *pvalue, size_t *psz) {
@@ -588,7 +744,7 @@ rmq_field_read_table(const void *data, size_t size,
         rest -= value_size;
 
         /* Append the pair to the table */
-        rmq_field_table_append_nocopy(table, name, value);
+        rmq_field_table_add_nocopy(table, name, value);
     }
 
     len -= content_size;
@@ -1458,8 +1614,8 @@ rmq_field_table_delete(struct rmq_field_table *table) {
 }
 
 void
-rmq_field_table_append_nocopy(struct rmq_field_table *table,
-                              char *name, struct rmq_field *value) {
+rmq_field_table_add_nocopy(struct rmq_field_table *table,
+                           char *name, struct rmq_field *value) {
     struct rmq_field_pair pair;
 
     rmq_field_pair_init(&pair);

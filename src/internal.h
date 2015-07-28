@@ -42,30 +42,7 @@ void rmq_long_string_init(struct rmq_long_string *);
 void rmq_long_string_free(struct rmq_long_string *);
 
 /* Field values */
-enum rmq_field_type {
-    RMQ_FIELD_BOOLEAN,
-    RMQ_FIELD_SHORT_SHORT_INT,
-    RMQ_FIELD_SHORT_SHORT_UINT,
-    RMQ_FIELD_SHORT_INT,
-    RMQ_FIELD_SHORT_UINT,
-    RMQ_FIELD_LONG_INT,
-    RMQ_FIELD_LONG_UINT,
-    RMQ_FIELD_LONG_LONG_INT,
-    RMQ_FIELD_LONG_LONG_UINT,
-    RMQ_FIELD_FLOAT,
-    RMQ_FIELD_DOUBLE,
-    RMQ_FIELD_DECIMAL,
-    RMQ_FIELD_SHORT_STRING,
-    RMQ_FIELD_LONG_STRING,
-    RMQ_FIELD_ARRAY,
-    RMQ_FIELD_TIMESTAMP,
-    RMQ_FIELD_TABLE,
-    RMQ_FIELD_NO_VALUE,
-};
-
 #define RMQ_FIELD_END 0xffff
-
-const char *rmq_field_type_to_string(enum rmq_field_type);
 
 struct rmq_field {
     enum rmq_field_type type;
@@ -90,9 +67,6 @@ struct rmq_field {
         struct rmq_field_table *table;
     } u;
 };
-
-struct rmq_field *rmq_field_new(enum rmq_field_type);
-void rmq_field_delete(struct rmq_field *);
 
 int rmq_field_read_boolean(const void *, size_t, bool *, size_t *);
 int rmq_field_read_short_short_int(const void *, size_t, int8_t *, size_t *);
@@ -164,8 +138,8 @@ struct rmq_field_table {
 struct rmq_field_table *rmq_field_table_new(void);
 void rmq_field_table_delete(struct rmq_field_table *);
 
-void rmq_field_table_append_nocopy(struct rmq_field_table *,
-                                   char *, struct rmq_field *);
+void rmq_field_table_add_nocopy(struct rmq_field_table *,
+                                char *, struct rmq_field *);
 
 /* Message properties */
 struct rmq_properties {
@@ -191,8 +165,8 @@ void rmq_properties_free(struct rmq_properties *);
 
 void rmq_properties_set_content_type(struct rmq_properties *, const char *);
 void rmq_properties_set_content_encoding(struct rmq_properties *, const char *);
-void rmq_properties_append_header_nocopy(struct rmq_properties *,
-                                         const char *, struct rmq_field *);
+void rmq_properties_add_header_nocopy(struct rmq_properties *,
+                                      const char *, struct rmq_field *);
 void rmq_properties_set_delivery_mode(struct rmq_properties *,
                                       enum rmq_delivery_mode);
 void rmq_properties_set_priority(struct rmq_properties *, uint8_t);

@@ -186,6 +186,7 @@ rmqu_on_client_ready(void) {
 
     msg = rmq_msg_new();
     rmq_msg_set_content_type(msg, "text/plain");
+    rmq_msg_add_header_nocopy(msg, "foo", rmq_field_new_long_int(42));
     rmq_msg_set_data_nocopy(msg, (void *)string, strlen(string));
 
     rmq_client_publish(rmqu.client, msg, "messages", "", RMQ_PUBLISH_DEFAULT);

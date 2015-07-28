@@ -21,6 +21,53 @@
 #include <io.h>
 
 /* ---------------------------------------------------------------------------
+ *  Field
+ * ------------------------------------------------------------------------ */
+enum rmq_field_type {
+    RMQ_FIELD_BOOLEAN,
+    RMQ_FIELD_SHORT_SHORT_INT,
+    RMQ_FIELD_SHORT_SHORT_UINT,
+    RMQ_FIELD_SHORT_INT,
+    RMQ_FIELD_SHORT_UINT,
+    RMQ_FIELD_LONG_INT,
+    RMQ_FIELD_LONG_UINT,
+    RMQ_FIELD_LONG_LONG_INT,
+    RMQ_FIELD_LONG_LONG_UINT,
+    RMQ_FIELD_FLOAT,
+    RMQ_FIELD_DOUBLE,
+    RMQ_FIELD_DECIMAL,
+    RMQ_FIELD_SHORT_STRING,
+    RMQ_FIELD_LONG_STRING,
+    RMQ_FIELD_ARRAY,
+    RMQ_FIELD_TIMESTAMP,
+    RMQ_FIELD_TABLE,
+    RMQ_FIELD_NO_VALUE,
+};
+
+const char *rmq_field_type_to_string(enum rmq_field_type);
+
+struct rmq_field *rmq_field_new(enum rmq_field_type);
+void rmq_field_delete(struct rmq_field *);
+
+struct rmq_field *rmq_field_new_boolean(bool);
+struct rmq_field *rmq_field_new_short_short_int(int8_t);
+struct rmq_field *rmq_field_new_short_short_uint(uint8_t);
+struct rmq_field *rmq_field_new_short_int(int16_t);
+struct rmq_field *rmq_field_new_short_uint(uint16_t);
+struct rmq_field *rmq_field_new_long_int(int32_t);
+struct rmq_field *rmq_field_new_long_uint(uint32_t);
+struct rmq_field *rmq_field_new_long_long_int(int64_t);
+struct rmq_field *rmq_field_new_long_long_uint(uint64_t);
+struct rmq_field *rmq_field_new_float(float);
+struct rmq_field *rmq_field_new_double(double);
+struct rmq_field *rmq_field_new_short_string(const char *);
+struct rmq_field *rmq_field_new_long_string(const void *, size_t);
+struct rmq_field *rmq_field_new_array(void);
+struct rmq_field *rmq_field_new_timestamp(uint64_t);
+struct rmq_field *rmq_field_new_table(void);
+struct rmq_field *rmq_field_new_no_value(void);
+
+/* ---------------------------------------------------------------------------
  *  Message
  * ------------------------------------------------------------------------ */
 enum rmq_property {
@@ -49,9 +96,8 @@ void rmq_msg_delete(struct rmq_msg *);
 
 void rmq_msg_set_content_type(struct rmq_msg *, const char *);
 void rmq_msg_set_content_encoding(struct rmq_msg *, const char *);
-// TODO
-//void rmq_msg_append_header_nocopy(struct rmq_msg *,
-//                                  const char *, struct rmq_field *);
+void rmq_msg_add_header_nocopy(struct rmq_msg *,
+                               const char *, struct rmq_field *);
 void rmq_msg_set_delivery_mode(struct rmq_msg *, enum rmq_delivery_mode);
 void rmq_msg_set_priority(struct rmq_msg *, uint8_t);
 void rmq_msg_set_correlation_id(struct rmq_msg *, const char *);
