@@ -150,4 +150,15 @@ enum rmq_publish_option {
 void rmq_client_publish(struct rmq_client *, struct rmq_msg *, const char *,
                         const char *, uint32_t);
 
+enum rmq_subscribe_option {
+    RMQ_SUBSCRIBE_DEFAULT   = 0x00,
+    RMQ_SUBSCRIBE_NO_LOCAL  = 0x01,
+    RMQ_SUBSCRIBE_NO_ACK    = 0x02,
+    RMQ_SUBSCRIBE_EXCLUSIVE = 0x04,
+    RMQ_SUBSCRIBE_NO_WAIT   = 0x08,
+};
+
+void rmq_client_subscribe(struct rmq_client *, const char *, uint8_t);
+void rmq_client_unsubscribe(struct rmq_client *, const char *);
+
 #endif

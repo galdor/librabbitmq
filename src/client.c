@@ -253,6 +253,37 @@ rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
     rmq_msg_delete(msg);
 }
 
+void
+rmq_client_subscribe(struct rmq_client *client, const char *queue,
+                     uint8_t options) {
+    const char *tag;
+    struct rmq_field_table *arguments;
+
+    tag = queue;
+    arguments = rmq_field_table_new();
+
+    rmq_client_send_method(client, RMQ_METHOD_BASIC_CONSUME,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, queue,
+                           RMQ_FIELD_SHORT_STRING, tag,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
+                           RMQ_FIELD_TABLE, arguments,
+                           RMQ_FIELD_END);
+
+    rmq_field_table_delete(arguments);
+}
+
+void
+rmq_client_unsubscribe(struct rmq_client *client, const char *queue) {
+    const char *tag;
+
+    tag = queue;
+
+    rmq_client_send_method(client, RMQ_METHOD_BASIC_CANCEL,
+                           RMQ_FIELD_SHORT_STRING, tag,
+                           RMQ_FIELD_END);
+}
+
 static void
 rmq_client_signal_event(struct rmq_client *client,
                         enum rmq_client_event event, void *arg) {
@@ -574,6 +605,10 @@ RMQ_METHOD_HANDLER(channel_open_ok) {
     return 0;
 }
 
+RMQ_METHOD_HANDLER(basic_consume_ok) {
+    return 0;
+}
+
 #undef RMQ_METHOD_HANDLER
 
 /* ---------------------------------------------------------------------------
@@ -619,6 +654,8 @@ rmq_client_on_method(struct rmq_client *client,
     RMQ_HANDLER(CONNECTION_CLOSE_OK, connection_close_ok);
 
     RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
+
+    RMQ_HANDLER(BASIC_CONSUME_OK, basic_consume_ok);
 
 #undef RMQ_HANDLER
 

@@ -179,6 +179,7 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
 
 static void
 rmqu_on_client_ready(void) {
+#if 0
     struct rmq_msg *msg;
     const char *string;
 
@@ -190,4 +191,7 @@ rmqu_on_client_ready(void) {
     rmq_msg_set_data_nocopy(msg, (void *)string, strlen(string));
 
     rmq_client_publish(rmqu.client, msg, "messages", "", RMQ_PUBLISH_DEFAULT);
+#endif
+
+    rmq_client_subscribe(rmqu.client, "messages", RMQ_SUBSCRIBE_DEFAULT);
 }
