@@ -131,8 +131,16 @@ enum rmq_client_event {
 
 typedef void (*rmq_client_event_cb)(struct rmq_client *, enum rmq_client_event,
                                     void *, void *);
-typedef void (*rmq_msg_cb)(struct rmq_client *, const struct rmq_delivery *,
-                           const struct rmq_msg *, void *);
+
+enum rmq_msg_action {
+    RMQ_MSG_ACTION_OK,
+    RMQ_MSG_ACTION_DROP,
+    RMQ_MSG_ACTION_REQUEUE,
+};
+
+typedef enum rmq_msg_action (*rmq_msg_cb)(struct rmq_client *,
+                                          const struct rmq_delivery *,
+                                          const struct rmq_msg *, void *);
 
 struct rmq_client *rmq_client_new(struct io_base *);
 void rmq_client_delete(struct rmq_client *);

@@ -311,6 +311,32 @@ rmq_client_connection_close(struct rmq_client *client,
 }
 
 void
+rmq_client_ack(struct rmq_client *client, uint64_t tag) {
+    uint8_t flags;
+
+    flags = 0x00; /* multiple = false */
+
+    rmq_client_send_method(client, RMQ_METHOD_BASIC_ACK,
+                           RMQ_FIELD_LONG_LONG_UINT, tag,
+                           RMQ_FIELD_SHORT_SHORT_UINT, flags,
+                           RMQ_FIELD_END);
+}
+
+void
+rmq_client_reject(struct rmq_client *client, uint64_t tag, bool requeue) {
+    uint8_t flags;
+
+    flags = 0x00;
+    if (requeue)
+        flags |= 0x01;
+
+    rmq_client_send_method(client, RMQ_METHOD_BASIC_REJECT,
+                           RMQ_FIELD_LONG_LONG_UINT, tag,
+                           RMQ_FIELD_SHORT_SHORT_UINT, flags,
+                           RMQ_FIELD_END);
+}
+
+void
 rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
                    const char *exchange,
                    const char *routing_key, uint32_t options) {
@@ -909,6 +935,8 @@ rmq_client_on_content(struct rmq_client *client,
     struct rmq_delivery *delivery;
     uint8_t *data;
     size_t data_sz;
+    enum rmq_msg_action action;
+    uint64_t tag;
 
     if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_IDLE) {
         c_set_error("no delivery in progress");
@@ -925,25 +953,51 @@ rmq_client_on_content(struct rmq_client *client,
     rmq_client_trace(client, "delivery %"PRIu64": content",
                      consumer->delivery.tag);
 
+    if (frame->size == 0) {
+        /* TODO cancel delivery */
+    }
+
     data_sz = delivery->msg->data_sz + frame->size;
     data = c_realloc(delivery->msg->data, data_sz);
 
     delivery->msg->data = data;
     delivery->msg->data_sz = data_sz;
 
-    if (data_sz >= delivery->data_size) {
-        rmq_client_trace(client, "delivery %"PRIu64": done",
-                         consumer->delivery.tag);
+    if (data_sz < delivery->data_size) {
+        /* Message incomplete */
+        return 0;
+    }
 
-        if (consumer->msg_cb) {
-            consumer->msg_cb(client, delivery, delivery->msg,
-                             consumer->msg_cb_arg);
-        }
+    rmq_client_trace(client, "delivery %"PRIu64": done",
+                     consumer->delivery.tag);
 
-        rmq_delivery_free(&consumer->delivery);
-        consumer->has_delivery = false;
+    if (consumer->msg_cb) {
+        action = consumer->msg_cb(client, delivery, delivery->msg,
+                                  consumer->msg_cb_arg);
 
-        client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
+    } else {
+        action = RMQ_MSG_ACTION_REQUEUE;
+    }
+
+    tag = delivery->tag;
+
+    rmq_delivery_free(&consumer->delivery);
+    consumer->has_delivery = false;
+
+    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
+
+    switch (action) {
+    case RMQ_MSG_ACTION_OK:
+        rmq_client_ack(client, tag);
+        break;
+
+    case RMQ_MSG_ACTION_DROP:
+        rmq_client_reject(client, tag, false);
+        break;
+
+    case RMQ_MSG_ACTION_REQUEUE:
+        rmq_client_reject(client, tag, true);
+        break;
     }
 
     return 0;
