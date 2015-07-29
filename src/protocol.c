@@ -1798,6 +1798,95 @@ rmq_header_frame_init(struct rmq_header_frame *header) {
     memset(header, 0, sizeof(struct rmq_header_frame));
 }
 
+int
+rmq_header_frame_read(struct rmq_header_frame *header,
+                      struct rmq_properties *pproperties,
+                      const struct rmq_frame *frame) {
+    const uint8_t *ptr;
+    uint16_t mask;
+    size_t len, property_sz;
+
+    ptr = frame->payload;
+    len = frame->size;
+
+    if (len < 14) {
+        c_set_error("truncated payload");
+        return -1;
+    }
+
+    rmq_header_frame_init(header);
+
+    header->class_id = rmq_read_u16(ptr);
+    /* Ignore the second field (weight), it's deprecated */
+    header->body_size = rmq_read_u64(ptr + 4);
+    mask = rmq_read_u16(ptr + 12);
+
+    rmq_properties_init(pproperties);
+    header->properties = pproperties;
+    pproperties->mask = mask;
+
+    ptr += 14;
+    len -= 14;
+
+#define RMQ_READ_PROPERTY(type_, dest_)                                    \
+    do {                                                                   \
+        if (rmq_field_read_##type_(ptr, len, dest_, &property_sz) == -1) { \
+            rmq_properties_free(pproperties);                              \
+            return -1;                                                     \
+        }                                                                  \
+                                                                           \
+        ptr += property_sz;                                                \
+        len -= property_sz;                                                \
+    } while (0)
+
+    if (mask & RMQ_PROPERTY_CONTENT_TYPE)
+        RMQ_READ_PROPERTY(short_string, &pproperties->content_type);
+
+    if (mask & RMQ_PROPERTY_CONTENT_ENCODING)
+        RMQ_READ_PROPERTY(short_string, &pproperties->content_encoding);
+
+    if (mask & RMQ_PROPERTY_HEADERS)
+        RMQ_READ_PROPERTY(table, &pproperties->headers);
+
+    if (mask & RMQ_PROPERTY_DELIVERY_MODE) {
+        uint8_t u8;
+
+        RMQ_READ_PROPERTY(short_short_uint, &u8);
+        pproperties->delivery_mode = u8;
+    }
+
+    if (mask & RMQ_PROPERTY_PRIORITY)
+        RMQ_READ_PROPERTY(short_short_uint, &pproperties->priority);
+
+    if (mask & RMQ_PROPERTY_CORRELATION_ID)
+        RMQ_READ_PROPERTY(short_string, &pproperties->correlation_id);
+
+    if (mask & RMQ_PROPERTY_REPLY_TO)
+        RMQ_READ_PROPERTY(short_string, &pproperties->reply_to);
+
+    if (mask & RMQ_PROPERTY_EXPIRATION)
+        RMQ_READ_PROPERTY(short_string, &pproperties->expiration);
+
+    if (mask & RMQ_PROPERTY_MESSAGE_ID)
+        RMQ_READ_PROPERTY(short_string, &pproperties->message_id);
+
+    if (mask & RMQ_PROPERTY_TIMESTAMP)
+        RMQ_READ_PROPERTY(long_long_uint, &pproperties->timestamp);
+
+    if (mask & RMQ_PROPERTY_TYPE)
+        RMQ_READ_PROPERTY(short_string, &pproperties->type);
+
+    if (mask & RMQ_PROPERTY_USER_ID)
+        RMQ_READ_PROPERTY(short_string, &pproperties->user_id);
+
+    if (mask & RMQ_PROPERTY_APP_ID)
+        RMQ_READ_PROPERTY(short_string, &pproperties->app_id);
+
+#undef RMQ_READ_PROPERTY
+
+    return 0;
+}
+
 void
 rmq_header_frame_write(const struct rmq_header_frame *header,
                        struct c_buffer *buf) {

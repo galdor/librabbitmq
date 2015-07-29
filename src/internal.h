@@ -19,6 +19,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <string.h>
 
 #include "rabbitmq.h"
@@ -280,6 +281,8 @@ struct rmq_header_frame {
 
 void rmq_header_frame_init(struct rmq_header_frame *);
 
+int rmq_header_frame_read(struct rmq_header_frame *, struct rmq_properties *,
+                          const struct rmq_frame *);
 void rmq_header_frame_write(const struct rmq_header_frame *, struct c_buffer *);
 
 /* Reply codes */
@@ -316,17 +319,35 @@ struct rmq_msg {
 };
 
 /* ---------------------------------------------------------------------------
+ *  Delivery
+ * ------------------------------------------------------------------------ */
+struct rmq_delivery {
+    uint64_t tag;
+    struct rmq_consumer *consumer;
+    bool redelivered;
+    char *exchange;
+    char *routing_key;
+
+    struct rmq_msg *msg;
+    size_t data_size;
+};
+
+void rmq_delivery_init(struct rmq_delivery *);
+void rmq_delivery_free(struct rmq_delivery *);
+
+/* ---------------------------------------------------------------------------
  *  Consumer
  * ------------------------------------------------------------------------ */
-typedef void (*rmq_msg_cb)(struct rmq_client *, const char *, bool,
-                           const struct rmq_msg *, const char *, const char *,
-                           void *);
 struct rmq_consumer {
     char *queue;
     char *tag;
 
     rmq_msg_cb msg_cb;
     void *msg_cb_arg;
+
+    /* Current delivery */
+    bool has_delivery;
+    struct rmq_delivery delivery;
 };
 
 struct rmq_consumer *rmq_consumer_new(const char *, char *);
@@ -345,6 +366,12 @@ enum rmq_client_state {
     RMQ_CLIENT_STATE_CLOSING,
 };
 
+enum rmq_client_delivery_state {
+    RMQ_CLIENT_DELIVERY_STATE_IDLE,
+    RMQ_CLIENT_DELIVERY_STATE_METHOD_RECEIVED,
+    RMQ_CLIENT_DELIVERY_STATE_HEADER_RECEIVED,
+};
+
 struct rmq_client {
     struct io_base *io_base;
     struct io_tcp_client *tcp_client;
@@ -360,8 +387,13 @@ struct rmq_client {
 
     uint16_t channel;
 
-    struct c_hash_table *consumers;
+    struct c_hash_table *consumers_by_tag;
+    struct c_hash_table *consumers_by_queue;
     int consumer_tag_id;
+
+    enum rmq_client_delivery_state delivery_state;
+    uint64_t delivery_tag;
+    struct rmq_consumer *delivery_consumer;
 };
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,

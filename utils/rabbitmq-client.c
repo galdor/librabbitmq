@@ -39,6 +39,8 @@ static void rmqu_on_signal(int, void *);
 static void rmqu_on_client_event(struct rmq_client *, enum rmq_client_event,
                                  void *, void *);
 static void rmqu_on_client_ready(void);
+static void rmqu_on_client_msg(struct rmq_client *, const struct rmq_delivery *,
+                               const struct rmq_msg *, void *);
 
 int
 main(int argc, char **argv) {
@@ -193,5 +195,18 @@ rmqu_on_client_ready(void) {
     rmq_client_publish(rmqu.client, msg, "messages", "", RMQ_PUBLISH_DEFAULT);
 #endif
 
-    rmq_client_subscribe(rmqu.client, "messages", RMQ_SUBSCRIBE_DEFAULT);
+    rmq_client_subscribe(rmqu.client, "messages", RMQ_SUBSCRIBE_DEFAULT,
+                         rmqu_on_client_msg, NULL);
+}
+
+static void
+rmqu_on_client_msg(struct rmq_client *client,
+                   const struct rmq_delivery *delivery,
+                   const struct rmq_msg *msg, void *arg) {
+    const uint8_t *data;
+    size_t size;
+
+    data = rmq_msg_data(msg, &size);
+
+    printf("message received (%zu bytes)\n", size);
 }

@@ -17,6 +17,30 @@
 #include "internal.h"
 
 /* ---------------------------------------------------------------------------
+ *  Delivery
+ * ------------------------------------------------------------------------ */
+void
+rmq_delivery_init(struct rmq_delivery *delivery) {
+    memset(delivery, 0, sizeof(struct rmq_delivery));
+
+    delivery->msg = rmq_msg_new();
+    delivery->msg->data_owned = true;
+}
+
+void
+rmq_delivery_free(struct rmq_delivery *delivery) {
+    if (!delivery)
+        return;
+
+    c_free(delivery->exchange);
+    c_free(delivery->routing_key);
+
+    rmq_msg_delete(delivery->msg);
+
+    memset(delivery, 0, sizeof(struct rmq_delivery));
+}
+
+/* ---------------------------------------------------------------------------
  *  Consumer
  * ------------------------------------------------------------------------ */
 struct rmq_consumer *
@@ -38,6 +62,9 @@ rmq_consumer_delete(struct rmq_consumer *consumer) {
 
     c_free(consumer->queue);
     c_free(consumer->tag);
+
+    if (consumer->has_delivery)
+        rmq_delivery_free(&consumer->delivery);
 
     c_free0(consumer, sizeof(struct rmq_consumer));
 }
@@ -65,6 +92,11 @@ static void rmq_client_on_data(struct rmq_client *);
 static int rmq_client_on_frame(struct rmq_client *, const struct rmq_frame *);
 static int rmq_client_on_method(struct rmq_client *,
                                 const struct rmq_method_frame *);
+static int rmq_client_on_header(struct rmq_client *,
+                                const struct rmq_header_frame *,
+                                struct rmq_properties *);
+static int rmq_client_on_content(struct rmq_client *,
+                                 const struct rmq_frame *);
 
 struct rmq_client *
 rmq_client_new(struct io_base *io_base) {
@@ -81,7 +113,9 @@ rmq_client_new(struct io_base *io_base) {
     client->password = c_strdup("guest");
     client->vhost = c_strdup("/");
 
-    client->consumers = c_hash_table_new(c_hash_string, c_equal_string);
+    client->consumers_by_tag = c_hash_table_new(c_hash_string, c_equal_string);
+    client->consumers_by_queue = c_hash_table_new(c_hash_string,
+                                                  c_equal_string);
 
     return client;
 }
@@ -100,11 +134,13 @@ rmq_client_delete(struct rmq_client *client) {
     c_free(client->password);
     c_free(client->vhost);
 
-    it = c_hash_table_iterate(client->consumers);
+    it = c_hash_table_iterate(client->consumers_by_tag);
     while (c_hash_table_iterator_next(it, NULL, (void **)&consumer) == 1)
         rmq_consumer_delete(consumer);
     c_hash_table_iterator_delete(it);
-    c_hash_table_delete(client->consumers);
+    c_hash_table_delete(client->consumers_by_tag);
+
+    c_hash_table_delete(client->consumers_by_queue);
 
     c_free0(client, sizeof(struct rmq_client));
 }
@@ -295,17 +331,22 @@ rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
 
 void
 rmq_client_subscribe(struct rmq_client *client, const char *queue,
-                     uint8_t options) {
+                     uint8_t options, rmq_msg_cb cb, void *cb_arg) {
     struct rmq_field_table *arguments;
     struct rmq_consumer *consumer;
     char *tag;
 
-    assert(c_hash_table_get(client->consumers, queue, (void **)&consumer) == 0);
+    assert(c_hash_table_get(client->consumers_by_queue, queue,
+                            (void **)&consumer) == 0);
 
     c_asprintf(&tag, "consumer-%d", ++client->consumer_tag_id);
-    consumer = rmq_consumer_new(queue, tag);
 
-    c_hash_table_insert(client->consumers, consumer->queue, consumer);
+    consumer = rmq_consumer_new(queue, tag);
+    consumer->msg_cb = cb;
+    consumer->msg_cb_arg = cb_arg;
+
+    c_hash_table_insert(client->consumers_by_tag, consumer->tag, consumer);
+    c_hash_table_insert(client->consumers_by_queue, consumer->queue, consumer);
 
     arguments = rmq_field_table_new();
 
@@ -325,9 +366,14 @@ rmq_client_unsubscribe(struct rmq_client *client, const char *queue,
                        uint8_t options) {
     struct rmq_consumer *consumer;
 
-    assert(c_hash_table_get(client->consumers, queue, (void **)&consumer) == 1);
+    if (c_hash_table_get(client->consumers_by_queue, queue,
+                         (void **)&consumer) == 0) {
+        assert(false);
+    }
 
-    c_hash_table_remove(client->consumers, queue);
+    c_hash_table_remove(client->consumers_by_tag, consumer->tag);
+    c_hash_table_remove(client->consumers_by_queue, consumer->queue);
+
     rmq_consumer_delete(consumer);
 
     rmq_client_send_method(client, RMQ_METHOD_BASIC_CANCEL,
@@ -420,11 +466,16 @@ rmq_client_on_conn_closed(struct rmq_client *client) {
 
     client->state = RMQ_CLIENT_STATE_DISCONNECTED;
 
-    it = c_hash_table_iterate(client->consumers);
+    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
+    client->delivery_consumer = NULL;
+
+    it = c_hash_table_iterate(client->consumers_by_tag);
     while (c_hash_table_iterator_next(it, NULL, (void **)&consumer) == 1)
         rmq_consumer_delete(consumer);
     c_hash_table_iterator_delete(it);
-    c_hash_table_clear(client->consumers);
+    c_hash_table_clear(client->consumers_by_tag);
+
+    c_hash_table_clear(client->consumers_by_queue);
 
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_CONN_CLOSED, NULL);
 }
@@ -432,6 +483,9 @@ rmq_client_on_conn_closed(struct rmq_client *client) {
 static void
 rmq_client_on_conn_established(struct rmq_client *client) {
     client->state = RMQ_CLIENT_STATE_CONNECTED;
+
+    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
+
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_CONN_ESTABLISHED, NULL);
 
     /* Protocol header */
@@ -473,6 +527,8 @@ rmq_client_on_data(struct rmq_client *client) {
 static int
 rmq_client_on_frame(struct rmq_client *client, const struct rmq_frame *frame) {
     struct rmq_method_frame method;
+    struct rmq_header_frame header;
+    struct rmq_properties properties;
 
     if (frame->end != RMQ_FRAME_END) {
         c_set_error("invalid frame end 0x%02x", frame->end);
@@ -493,11 +549,23 @@ rmq_client_on_frame(struct rmq_client *client, const struct rmq_frame *frame) {
         break;
 
     case RMQ_FRAME_TYPE_HEADER:
-        rmq_client_trace(client, "header frame channel %u", frame->channel);
+        if (rmq_header_frame_read(&header, &properties, frame) == -1) {
+            c_set_error("cannot read method frame: %s", c_get_error());
+            return -1;
+        }
+
+        if (rmq_client_on_header(client, &header, &properties) == -1) {
+            c_set_error("cannot process header frame: %s", c_get_error());
+            rmq_properties_free(&properties);
+            return -1;
+        }
         break;
 
     case RMQ_FRAME_TYPE_BODY:
-        rmq_client_trace(client, "body frame channel %u", frame->channel);
+        if (rmq_client_on_content(client, frame) == -1) {
+            c_set_error("cannot process content frame: %s", c_get_error());
+            return -1;
+        }
         break;
 
     case RMQ_FRAME_TYPE_HEARTBEAT:
@@ -671,6 +739,67 @@ RMQ_METHOD_HANDLER(basic_consume_ok) {
     return 0;
 }
 
+RMQ_METHOD_HANDLER(basic_deliver) {
+    struct rmq_delivery delivery;
+    struct rmq_consumer *consumer;
+    char *consumer_tag;
+    uint64_t delivery_tag;
+    uint8_t flags;
+    char *exchange, *routing_key;
+
+    if (client->delivery_state != RMQ_CLIENT_DELIVERY_STATE_IDLE) {
+        c_set_error("delivery already in progress");
+        return -1;
+    }
+
+    if (rmq_fields_read(data, size, NULL,
+                        RMQ_FIELD_SHORT_STRING, &consumer_tag,
+                        RMQ_FIELD_LONG_LONG_UINT, &delivery_tag,
+                        RMQ_FIELD_SHORT_SHORT_UINT, &flags,
+                        RMQ_FIELD_SHORT_STRING, &exchange,
+                        RMQ_FIELD_SHORT_STRING, &routing_key,
+                        RMQ_FIELD_END) == -1) {
+        /* TODO error 505 */
+        c_set_error("invalid arguments: %s", c_get_error());
+        return -1;
+    }
+
+    rmq_delivery_init(&delivery);
+    delivery.tag = delivery_tag;
+    delivery.redelivered = (flags & 0x1);
+    delivery.exchange = exchange;
+    delivery.routing_key = routing_key;
+
+    if (c_hash_table_get(client->consumers_by_tag, consumer_tag,
+                         (void **)&consumer) == 0) {
+        c_set_error("unknown consumer '%s'", consumer_tag);
+        c_free(consumer_tag);
+        rmq_delivery_free(&delivery);
+        return -1;
+    }
+
+    c_free(consumer_tag);
+
+    delivery.consumer = consumer;
+
+    if (consumer->has_delivery) {
+        c_set_error("delivery already in progress for consumer '%s'",
+                    consumer->tag);
+        rmq_delivery_free(&delivery);
+        return -1;
+    }
+
+    consumer->has_delivery = true;
+    consumer->delivery = delivery;
+
+    rmq_client_trace(client, "delivery %"PRIu64": method",
+                     consumer->delivery.tag);
+
+    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_METHOD_RECEIVED;
+    client->delivery_consumer = consumer;
+    return 0;
+}
+
 #undef RMQ_METHOD_HANDLER
 
 /* ---------------------------------------------------------------------------
@@ -718,6 +847,7 @@ rmq_client_on_method(struct rmq_client *client,
     RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
 
     RMQ_HANDLER(BASIC_CONSUME_OK, basic_consume_ok);
+    RMQ_HANDLER(BASIC_DELIVER, basic_deliver);
 
 #undef RMQ_HANDLER
 
@@ -737,4 +867,82 @@ error:
     }
 
     return -1;
+}
+
+static int
+rmq_client_on_header(struct rmq_client *client,
+                     const struct rmq_header_frame *frame,
+                     struct rmq_properties *properties) {
+    struct rmq_consumer *consumer;
+    struct rmq_msg *msg;
+
+    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_IDLE) {
+        c_set_error("no delivery in progress");
+        return -1;
+    } else
+    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_HEADER_RECEIVED) {
+        c_set_error("duplicate header");
+        return -1;
+    }
+
+    consumer = client->delivery_consumer;
+    msg = consumer->delivery.msg;
+
+    consumer->delivery.data_size = frame->body_size;
+
+    rmq_properties_free(&msg->properties);
+    msg->properties = *properties;
+
+    rmq_client_trace(client, "delivery %"PRIu64": header",
+                     consumer->delivery.tag);
+
+    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_HEADER_RECEIVED;
+    return 0;
+}
+
+static int
+rmq_client_on_content(struct rmq_client *client,
+                      const struct rmq_frame *frame) {
+    struct rmq_consumer *consumer;
+    struct rmq_delivery *delivery;
+    uint8_t *data;
+    size_t data_sz;
+
+    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_IDLE) {
+        c_set_error("no delivery in progress");
+        return -1;
+    } else
+    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_METHOD_RECEIVED) {
+        c_set_error("content received before header");
+        return -1;
+    }
+
+    consumer = client->delivery_consumer;
+    delivery = &consumer->delivery;
+
+    rmq_client_trace(client, "delivery %"PRIu64": content",
+                     consumer->delivery.tag);
+
+    data_sz = delivery->msg->data_sz + frame->size;
+    data = c_realloc(delivery->msg->data, data_sz);
+
+    delivery->msg->data = data;
+    delivery->msg->data_sz = data_sz;
+
+    if (data_sz >= delivery->data_size) {
+        rmq_client_trace(client, "delivery %"PRIu64": done",
+                         consumer->delivery.tag);
+
+        if (consumer->msg_cb) {
+            consumer->msg_cb(client, delivery, delivery->msg,
+                             consumer->msg_cb_arg);
+        }
+
+        rmq_delivery_free(&consumer->delivery);
+        consumer->has_delivery = false;
+
+        client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
+    }
+
+    return 0;
 }

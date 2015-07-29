@@ -252,6 +252,12 @@ rmq_msg_set_app_id(struct rmq_msg *msg, const char *value) {
     rmq_properties_set_app_id(&msg->properties, value);
 }
 
+const void *
+rmq_msg_data(const struct rmq_msg *msg, size_t *psz) {
+    *psz = msg->data_sz;
+    return msg->data;
+}
+
 void
 rmq_msg_set_data_nocopy(struct rmq_msg *msg, void *data, size_t size) {
     if (msg->data_owned)

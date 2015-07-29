@@ -109,6 +109,7 @@ void rmq_msg_set_type(struct rmq_msg *, const char *);
 void rmq_msg_set_user_id(struct rmq_msg *, const char *);
 void rmq_msg_set_app_id(struct rmq_msg *, const char *);
 
+const void *rmq_msg_data(const struct rmq_msg *, size_t *);
 void rmq_msg_set_data_nocopy(struct rmq_msg *, void *, size_t);
 void rmq_msg_set_data(struct rmq_msg *, const void *, size_t);
 
@@ -116,6 +117,7 @@ void rmq_msg_set_data(struct rmq_msg *, const void *, size_t);
  *  Client
  * ------------------------------------------------------------------------ */
 struct rmq_client;
+struct rmq_delivery;
 
 enum rmq_client_event {
     RMQ_CLIENT_EVENT_CONN_ESTABLISHED,
@@ -129,6 +131,8 @@ enum rmq_client_event {
 
 typedef void (*rmq_client_event_cb)(struct rmq_client *, enum rmq_client_event,
                                     void *, void *);
+typedef void (*rmq_msg_cb)(struct rmq_client *, const struct rmq_delivery *,
+                           const struct rmq_msg *, void *);
 
 struct rmq_client *rmq_client_new(struct io_base *);
 void rmq_client_delete(struct rmq_client *);
@@ -158,7 +162,8 @@ enum rmq_subscribe_option {
     RMQ_SUBSCRIBE_NO_WAIT   = 0x08,
 };
 
-void rmq_client_subscribe(struct rmq_client *, const char *, uint8_t);
+void rmq_client_subscribe(struct rmq_client *, const char *, uint8_t,
+                          rmq_msg_cb, void *);
 
 enum rmq_unsubscribe_option {
     RMQ_USUBSCRIBE_DEFAULT   = 0x00,
