@@ -362,9 +362,9 @@ rmq_client_subscribe(struct rmq_client *client, const char *queue,
 }
 
 void
-rmq_client_unsubscribe(struct rmq_client *client, const char *queue,
-                       uint8_t options) {
+rmq_client_unsubscribe(struct rmq_client *client, const char *queue) {
     struct rmq_consumer *consumer;
+    uint8_t options;
 
     if (c_hash_table_get(client->consumers_by_queue, queue,
                          (void **)&consumer) == 0) {
@@ -375,6 +375,8 @@ rmq_client_unsubscribe(struct rmq_client *client, const char *queue,
     c_hash_table_remove(client->consumers_by_queue, consumer->queue);
 
     rmq_consumer_delete(consumer);
+
+    options = RMQ_UNSUBSCRIBE_NO_WAIT;
 
     rmq_client_send_method(client, RMQ_METHOD_BASIC_CANCEL,
                            RMQ_FIELD_SHORT_STRING, consumer->tag,

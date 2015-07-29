@@ -307,6 +307,12 @@ enum rmq_reply_code {
     RMQ_REPLY_CODE_INTERNAL_ERROR      = 541,
 };
 
+/* Misc */
+enum rmq_unsubscribe_option {
+    RMQ_UNSUBSCRIBE_DEFAULT   = 0x00,
+    RMQ_UNSUBSCRIBE_NO_WAIT   = 0x01,
+};
+
 /* ---------------------------------------------------------------------------
  *  Message
  * ------------------------------------------------------------------------ */
