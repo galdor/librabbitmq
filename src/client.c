@@ -601,7 +601,9 @@ rmq_client_on_frame(struct rmq_client *client, const struct rmq_frame *frame) {
             /* TODO error 503 */
         }
 
+#if 0
         rmq_client_trace(client, "heartbeat frame");
+#endif
         break;
 
     default:
@@ -820,8 +822,10 @@ RMQ_METHOD_HANDLER(basic_deliver) {
     consumer->has_delivery = true;
     consumer->delivery = delivery;
 
+#if 0
     rmq_client_trace(client, "delivery %"PRIu64": method",
                      consumer->delivery.tag);
+#endif
 
     client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_METHOD_RECEIVED;
     client->delivery_consumer = consumer;
@@ -842,9 +846,11 @@ rmq_client_on_method(struct rmq_client *client,
     method = RMQ_METHOD(frame->class_id, frame->method_id);
     method_string = rmq_method_to_string(method);
 
+#if 0
     rmq_client_trace(client, "method %u.%u %s",
                      frame->class_id, frame->method_id,
                      method_string ? method_string : "unknown");
+#endif
 
     if (client->state == RMQ_CLIENT_STATE_CLOSING
      && method != RMQ_METHOD_CONNECTION_CLOSE
@@ -921,8 +927,10 @@ rmq_client_on_header(struct rmq_client *client,
     rmq_properties_free(&msg->properties);
     msg->properties = *properties;
 
+#if 0
     rmq_client_trace(client, "delivery %"PRIu64": header",
                      consumer->delivery.tag);
+#endif
 
     client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_HEADER_RECEIVED;
     return 0;
@@ -950,8 +958,10 @@ rmq_client_on_content(struct rmq_client *client,
     consumer = client->delivery_consumer;
     delivery = &consumer->delivery;
 
+#if 0
     rmq_client_trace(client, "delivery %"PRIu64": content",
                      consumer->delivery.tag);
+#endif
 
     if (frame->size == 0) {
         /* TODO cancel delivery */
@@ -968,8 +978,10 @@ rmq_client_on_content(struct rmq_client *client,
         return 0;
     }
 
+#if 0
     rmq_client_trace(client, "delivery %"PRIu64": done",
                      consumer->delivery.tag);
+#endif
 
     if (consumer->msg_cb) {
         action = consumer->msg_cb(client, delivery, delivery->msg,
