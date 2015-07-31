@@ -39,9 +39,13 @@ static void rmqu_on_signal(int, void *);
 static void rmqu_on_client_event(struct rmq_client *, enum rmq_client_event,
                                  void *, void *);
 static void rmqu_on_client_ready(void);
-static enum rmq_msg_action rmqu_on_client_msg(struct rmq_client *,
-                                              const struct rmq_delivery *,
-                                              const struct rmq_msg *, void *);
+
+static enum rmq_msg_action rmqu_on_msg(struct rmq_client *,
+                                       const struct rmq_delivery *,
+                                       const struct rmq_msg *, void *);
+static void rmqu_on_undeliverable_msg(struct rmq_client *,
+                                      const struct rmq_delivery *,
+                                      const struct rmq_msg *, void *);
 
 int
 main(int argc, char **argv) {
@@ -88,6 +92,8 @@ main(int argc, char **argv) {
     rmqu.client = rmq_client_new(rmqu.io_base);
 
     rmq_client_set_event_cb(rmqu.client, rmqu_on_client_event, NULL);
+    rmq_client_set_undeliverable_msg_cb(rmqu.client,
+                                        rmqu_on_undeliverable_msg, NULL);
     rmq_client_set_credentials(rmqu.client, user, password);
     rmq_client_set_vhost(rmqu.client, vhost);
 
@@ -182,7 +188,7 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
 
 static void
 rmqu_on_client_ready(void) {
-#if 0
+#if 1
     struct rmq_msg *msg;
     const char *string;
 
@@ -193,17 +199,19 @@ rmqu_on_client_ready(void) {
     rmq_msg_add_header_nocopy(msg, "foo", rmq_field_new_long_int(42));
     rmq_msg_set_data_nocopy(msg, (void *)string, strlen(string));
 
-    rmq_client_publish(rmqu.client, msg, "messages", "", RMQ_PUBLISH_DEFAULT);
+    rmq_client_publish(rmqu.client, msg, "messages", "", RMQ_PUBLISH_MANDATORY);
 #endif
 
+#if 0
     rmq_client_subscribe(rmqu.client, "messages", RMQ_SUBSCRIBE_DEFAULT,
-                         rmqu_on_client_msg, NULL);
+                         rmqu_on_msg, NULL);
+#endif
 }
 
 static enum rmq_msg_action
-rmqu_on_client_msg(struct rmq_client *client,
-                   const struct rmq_delivery *delivery,
-                   const struct rmq_msg *msg, void *arg) {
+rmqu_on_msg(struct rmq_client *client,
+            const struct rmq_delivery *delivery,
+            const struct rmq_msg *msg, void *arg) {
     const uint8_t *data;
     size_t size;
 
@@ -212,4 +220,18 @@ rmqu_on_client_msg(struct rmq_client *client,
     printf("message received (%zu bytes)\n", size);
 
     return RMQ_MSG_ACTION_OK;
+}
+
+static void
+rmqu_on_undeliverable_msg(struct rmq_client *client,
+                          const struct rmq_delivery *delivery,
+                          const struct rmq_msg *msg, void *arg) {
+    const uint8_t *data;
+    const char *text;
+    size_t size;
+
+    data = rmq_msg_data(msg, &size);
+    text = rmq_delivery_undeliverable_reply_text(delivery);
+
+    printf("message cannot be delivered: %s\n", text);
 }

@@ -32,12 +32,33 @@ rmq_delivery_free(struct rmq_delivery *delivery) {
     if (!delivery)
         return;
 
+    switch (delivery->type) {
+    case RMQ_DELIVERY_TYPE_BASIC_DELIVER:
+        break;
+
+    case RMQ_DELIVERY_TYPE_BASIC_RETURN:
+        c_free(delivery->u.basic_return.reply_text);
+        break;
+    }
+
     c_free(delivery->exchange);
     c_free(delivery->routing_key);
 
     rmq_msg_delete(delivery->msg);
 
     memset(delivery, 0, sizeof(struct rmq_delivery));
+}
+
+enum rmq_reply_code
+rmq_delivery_undeliverable_reply_code(const struct rmq_delivery *delivery) {
+    assert(delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN);
+    return delivery->u.basic_return.reply_code;
+}
+
+const char *
+rmq_delivery_undeliverable_reply_text(const struct rmq_delivery *delivery) {
+    assert(delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN);
+    return delivery->u.basic_return.reply_text;
 }
 
 /* ---------------------------------------------------------------------------
@@ -150,6 +171,13 @@ rmq_client_set_event_cb(struct rmq_client *client,
                         rmq_client_event_cb cb, void *arg) {
     client->event_cb = cb;
     client->event_cb_arg = arg;
+}
+
+void
+rmq_client_set_undeliverable_msg_cb(struct rmq_client *client,
+                                    rmq_undeliverable_msg_cb cb, void *arg) {
+    client->undeliverable_msg_cb = cb;
+    client->undeliverable_msg_cb_arg = arg;
 }
 
 void
@@ -494,9 +522,6 @@ rmq_client_on_conn_closed(struct rmq_client *client) {
 
     client->state = RMQ_CLIENT_STATE_DISCONNECTED;
 
-    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
-    client->delivery_consumer = NULL;
-
     it = c_hash_table_iterate(client->consumers_by_tag);
     while (c_hash_table_iterator_next(it, NULL, (void **)&consumer) == 1)
         rmq_consumer_delete(consumer);
@@ -512,7 +537,8 @@ static void
 rmq_client_on_conn_established(struct rmq_client *client) {
     client->state = RMQ_CLIENT_STATE_CONNECTED;
 
-    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
+    rmq_delivery_free(&client->current_delivery);
+    client->has_current_delivery = false;
 
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_CONN_ESTABLISHED, NULL);
 
@@ -824,7 +850,7 @@ RMQ_METHOD_HANDLER(basic_deliver) {
     uint8_t flags;
     char *exchange, *routing_key;
 
-    if (client->delivery_state != RMQ_CLIENT_DELIVERY_STATE_IDLE) {
+    if (client->has_current_delivery) {
         c_set_error("delivery already in progress");
         return -1;
     }
@@ -841,41 +867,81 @@ RMQ_METHOD_HANDLER(basic_deliver) {
         return -1;
     }
 
-    rmq_delivery_init(&delivery);
-    delivery.tag = delivery_tag;
-    delivery.redelivered = (flags & 0x1);
-    delivery.exchange = exchange;
-    delivery.routing_key = routing_key;
-
     if (c_hash_table_get(client->consumers_by_tag, consumer_tag,
                          (void **)&consumer) == 0) {
         c_set_error("unknown consumer '%s'", consumer_tag);
         c_free(consumer_tag);
-        rmq_delivery_free(&delivery);
         return -1;
     }
 
     c_free(consumer_tag);
 
-    delivery.consumer = consumer;
+    rmq_delivery_init(&delivery);
 
-    if (consumer->has_delivery) {
-        c_set_error("delivery already in progress for consumer '%s'",
-                    consumer->tag);
-        rmq_delivery_free(&delivery);
+    delivery.type = RMQ_DELIVERY_TYPE_BASIC_DELIVER;
+    delivery.state = RMQ_DELIVERY_STATE_METHOD_RECEIVED;
+
+    delivery.u.basic_deliver.tag = delivery_tag;
+    delivery.u.basic_deliver.consumer = consumer;
+    delivery.u.basic_deliver.redelivered = (flags & 0x1);
+
+    delivery.exchange = exchange;
+    delivery.routing_key = routing_key;
+
+    client->current_delivery = delivery;
+    client->has_current_delivery = true;
+
+#if 0
+    rmq_client_trace(client, "delivery Basic.Deliver %"PRIu64": method",
+                     delivery.u.basic_deliver.tag);
+#endif
+    return 0;
+}
+
+RMQ_METHOD_HANDLER(basic_return) {
+    struct rmq_delivery delivery;
+    uint16_t reply_code;
+    char *reply_text, *exchange, *routing_key;
+
+    if (client->has_current_delivery) {
+        c_set_error("delivery already in progress");
         return -1;
     }
 
-    consumer->has_delivery = true;
-    consumer->delivery = delivery;
+    if (rmq_fields_read(data, size, NULL,
+                        RMQ_FIELD_SHORT_UINT, &reply_code,
+                        RMQ_FIELD_SHORT_STRING, &reply_text,
+                        RMQ_FIELD_SHORT_STRING, &exchange,
+                        RMQ_FIELD_SHORT_STRING, &routing_key,
+                        RMQ_FIELD_END) == -1) {
+        /* TODO error 505 */
+        c_set_error("invalid arguments: %s", c_get_error());
+        return -1;
+    }
 
 #if 0
-    rmq_client_trace(client, "delivery %"PRIu64": method",
-                     consumer->delivery.tag);
+    rmq_client_trace(client, "return %u (%s) exchange '%s' routing key '%s'",
+                     reply_code, reply_text, exchange, routing_key);
 #endif
 
-    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_METHOD_RECEIVED;
-    client->delivery_consumer = consumer;
+    rmq_delivery_init(&delivery);
+
+    delivery.type = RMQ_DELIVERY_TYPE_BASIC_RETURN;
+    delivery.state = RMQ_DELIVERY_STATE_METHOD_RECEIVED;
+
+    delivery.u.basic_return.reply_code = reply_code;
+    delivery.u.basic_return.reply_text = reply_text;
+
+    delivery.exchange = exchange;
+    delivery.routing_key = routing_key;
+
+    client->current_delivery = delivery;
+    client->has_current_delivery = true;
+
+#if 0
+    rmq_client_trace(client, "delivery Basic.Return: method");
+#endif
+
     return 0;
 }
 
@@ -930,6 +996,7 @@ rmq_client_on_method(struct rmq_client *client,
 
     RMQ_HANDLER(BASIC_CONSUME_OK, basic_consume_ok);
     RMQ_HANDLER(BASIC_DELIVER, basic_deliver);
+    RMQ_HANDLER(BASIC_RETURN, basic_return);
 
 #undef RMQ_HANDLER
 
@@ -955,65 +1022,65 @@ static int
 rmq_client_on_header(struct rmq_client *client,
                      const struct rmq_header_frame *frame,
                      struct rmq_properties *properties) {
-    struct rmq_consumer *consumer;
+    struct rmq_delivery *delivery;
     struct rmq_msg *msg;
 
-    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_IDLE) {
+    if (!client->has_current_delivery) {
         c_set_error("no delivery in progress");
         return -1;
-    } else
-    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_HEADER_RECEIVED) {
+    }
+
+    delivery = &client->current_delivery;
+    if (delivery->state == RMQ_DELIVERY_STATE_HEADER_RECEIVED) {
         c_set_error("duplicate header");
         return -1;
     }
 
-    consumer = client->delivery_consumer;
-    msg = consumer->delivery.msg;
+    delivery->data_size = frame->body_size;
 
-    consumer->delivery.data_size = frame->body_size;
-
+    msg = delivery->msg;
     rmq_properties_free(&msg->properties);
     msg->properties = *properties;
 
-#if 0
-    rmq_client_trace(client, "delivery %"PRIu64": header",
-                     consumer->delivery.tag);
-#endif
+    delivery->state = RMQ_DELIVERY_STATE_HEADER_RECEIVED;
 
-    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_HEADER_RECEIVED;
+#if 0
+    if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_DELIVER) {
+        rmq_client_trace(client, "delivery Basic.Deliver %"PRIu64": header",
+                         delivery->u.basic_deliver.tag);
+    } else if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN) {
+        rmq_client_trace(client, "delivery Basic.Return: header");
+    }
+#endif
     return 0;
 }
 
 static int
 rmq_client_on_content(struct rmq_client *client,
                       const struct rmq_frame *frame) {
-    struct rmq_consumer *consumer;
     struct rmq_delivery *delivery;
     uint8_t *data;
     size_t data_sz;
-    enum rmq_msg_action action;
-    uint64_t tag;
 
-    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_IDLE) {
+    if (!client->has_current_delivery) {
         c_set_error("no delivery in progress");
         return -1;
-    } else
-    if (client->delivery_state == RMQ_CLIENT_DELIVERY_STATE_METHOD_RECEIVED) {
+    }
+
+    delivery = &client->current_delivery;
+    if (delivery->state == RMQ_DELIVERY_STATE_METHOD_RECEIVED) {
         c_set_error("content received before header");
         return -1;
     }
 
-    consumer = client->delivery_consumer;
-    delivery = &consumer->delivery;
-
 #if 0
-    rmq_client_trace(client, "delivery %"PRIu64": content",
-                     consumer->delivery.tag);
-#endif
-
-    if (frame->size == 0) {
-        /* TODO cancel delivery */
+    if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_DELIVER) {
+        rmq_client_trace(client, "delivery Basic.Deliver %"PRIu64": content",
+                         delivery->u.basic_deliver.tag);
+    } else if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN) {
+        rmq_client_trace(client, "delivery Basic.Return: content");
     }
+#endif
 
     data_sz = delivery->msg->data_sz + frame->size;
     data = c_realloc(delivery->msg->data, data_sz);
@@ -1021,43 +1088,64 @@ rmq_client_on_content(struct rmq_client *client,
     delivery->msg->data = data;
     delivery->msg->data_sz = data_sz;
 
+    if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_DELIVER && frame->size == 0) {
+        /* TODO cancel delivery */
+    } else
     if (data_sz < delivery->data_size) {
         /* Message incomplete */
         return 0;
     }
 
 #if 0
-    rmq_client_trace(client, "delivery %"PRIu64": done",
-                     consumer->delivery.tag);
+    if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_DELIVER) {
+        rmq_client_trace(client, "delivery Basic.Deliver %"PRIu64": done",
+                         delivery->u.basic_deliver.tag);
+    } else if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN) {
+        rmq_client_trace(client, "delivery Basic.Return: done");
+    }
 #endif
 
-    if (consumer->msg_cb) {
-        action = consumer->msg_cb(client, delivery, delivery->msg,
-                                  consumer->msg_cb_arg);
+    if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_DELIVER) {
+        struct rmq_consumer *consumer;
+        enum rmq_msg_action action;
+        uint64_t tag;
 
-    } else {
-        action = RMQ_MSG_ACTION_REQUEUE;
-    }
+        consumer = delivery->u.basic_deliver.consumer;
 
-    tag = delivery->tag;
+        if (consumer->msg_cb) {
+            action = consumer->msg_cb(client, delivery, delivery->msg,
+                                      consumer->msg_cb_arg);
 
-    rmq_delivery_free(&consumer->delivery);
-    consumer->has_delivery = false;
+        } else {
+            action = RMQ_MSG_ACTION_REQUEUE;
+        }
 
-    client->delivery_state = RMQ_CLIENT_DELIVERY_STATE_IDLE;
+        tag = delivery->u.basic_deliver.tag;
 
-    switch (action) {
-    case RMQ_MSG_ACTION_OK:
-        rmq_client_ack(client, tag);
-        break;
+        rmq_delivery_free(&client->current_delivery);
+        client->has_current_delivery = false;
 
-    case RMQ_MSG_ACTION_DROP:
-        rmq_client_reject(client, tag, false);
-        break;
+        switch (action) {
+        case RMQ_MSG_ACTION_OK:
+            rmq_client_ack(client, tag);
+            break;
 
-    case RMQ_MSG_ACTION_REQUEUE:
-        rmq_client_reject(client, tag, true);
-        break;
+        case RMQ_MSG_ACTION_DROP:
+            rmq_client_reject(client, tag, false);
+            break;
+
+        case RMQ_MSG_ACTION_REQUEUE:
+            rmq_client_reject(client, tag, true);
+            break;
+        }
+    } else if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN) {
+        if (client->undeliverable_msg_cb) {
+            client->undeliverable_msg_cb(client, delivery, delivery->msg,
+                                         client->undeliverable_msg_cb_arg);
+        }
+
+        rmq_delivery_free(&client->current_delivery);
+        client->has_current_delivery = false;
     }
 
     return 0;

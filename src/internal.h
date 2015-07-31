@@ -285,28 +285,6 @@ int rmq_header_frame_read(struct rmq_header_frame *, struct rmq_properties *,
                           const struct rmq_frame *);
 void rmq_header_frame_write(const struct rmq_header_frame *, struct c_buffer *);
 
-/* Reply codes */
-enum rmq_reply_code {
-    RMQ_REPLY_CODE_SUCCESS             = 200,
-    RMQ_REPLY_CODE_CONTENT_TOO_LARGE   = 311,
-    RMQ_REPLY_CODE_NO_CONSUMERS        = 313,
-    RMQ_REPLY_CODE_CONNECTION_FORCED   = 320,
-    RMQ_REPLY_CODE_INVALID_PATH        = 402,
-    RMQ_REPLY_CODE_ACCESS_REFUSED      = 403,
-    RMQ_REPLY_CODE_NOT_FOUND           = 404,
-    RMQ_REPLY_CODE_RESOURCE_LOCKED     = 405,
-    RMQ_REPLY_CODE_PRECONDITION_FAILED = 406,
-    RMQ_REPLY_CODE_FRAME_ERROR         = 501,
-    RMQ_REPLY_CODE_SYNTAX_ERROR        = 502,
-    RMQ_REPLY_CODE_COMMAND_INVALID     = 503,
-    RMQ_REPLY_CODE_CHANNEL_ERROR       = 504,
-    RMQ_REPLY_CODE_UNEXPECTED_FRAME    = 505,
-    RMQ_REPLY_CODE_RESOURCE_ERROR      = 506,
-    RMQ_REPLY_CODE_NOT_ALLOWED         = 530,
-    RMQ_REPLY_CODE_NOT_IMPLEMENTED     = 540,
-    RMQ_REPLY_CODE_INTERNAL_ERROR      = 541,
-};
-
 /* Misc */
 enum rmq_unsubscribe_option {
     RMQ_UNSUBSCRIBE_DEFAULT   = 0x00,
@@ -327,10 +305,32 @@ struct rmq_msg {
 /* ---------------------------------------------------------------------------
  *  Delivery
  * ------------------------------------------------------------------------ */
+enum rmq_delivery_type {
+    RMQ_DELIVERY_TYPE_BASIC_DELIVER,
+    RMQ_DELIVERY_TYPE_BASIC_RETURN,
+};
+
+enum rmq_delivery_state {
+    RMQ_DELIVERY_STATE_METHOD_RECEIVED,
+    RMQ_DELIVERY_STATE_HEADER_RECEIVED,
+};
+
 struct rmq_delivery {
-    uint64_t tag;
-    struct rmq_consumer *consumer;
-    bool redelivered;
+    enum rmq_delivery_type type;
+    enum rmq_delivery_state state;
+
+    union {
+        struct {
+            uint64_t tag;
+            struct rmq_consumer *consumer;
+            bool redelivered;
+        } basic_deliver;
+        struct {
+            enum rmq_reply_code reply_code;
+            char *reply_text;
+        } basic_return;
+    } u;
+
     char *exchange;
     char *routing_key;
 
@@ -372,12 +372,6 @@ enum rmq_client_state {
     RMQ_CLIENT_STATE_CLOSING,
 };
 
-enum rmq_client_delivery_state {
-    RMQ_CLIENT_DELIVERY_STATE_IDLE,
-    RMQ_CLIENT_DELIVERY_STATE_METHOD_RECEIVED,
-    RMQ_CLIENT_DELIVERY_STATE_HEADER_RECEIVED,
-};
-
 struct rmq_client {
     struct io_base *io_base;
     struct io_tcp_client *tcp_client;
@@ -386,6 +380,9 @@ struct rmq_client {
 
     rmq_client_event_cb event_cb;
     void *event_cb_arg;
+
+    rmq_undeliverable_msg_cb undeliverable_msg_cb;
+    void *undeliverable_msg_cb_arg;
 
     char *login;
     char *password;
@@ -397,9 +394,8 @@ struct rmq_client {
     struct c_hash_table *consumers_by_queue;
     int consumer_tag_id;
 
-    enum rmq_client_delivery_state delivery_state;
-    uint64_t delivery_tag;
-    struct rmq_consumer *delivery_consumer;
+    bool has_current_delivery;
+    struct rmq_delivery current_delivery;
 };
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,

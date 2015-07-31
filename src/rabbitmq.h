@@ -68,6 +68,40 @@ struct rmq_field *rmq_field_new_table(void);
 struct rmq_field *rmq_field_new_no_value(void);
 
 /* ---------------------------------------------------------------------------
+ *  Protocol
+ * ------------------------------------------------------------------------ */
+/* Reply codes */
+enum rmq_reply_code {
+    RMQ_REPLY_CODE_SUCCESS             = 200,
+    RMQ_REPLY_CODE_CONTENT_TOO_LARGE   = 311,
+    RMQ_REPLY_CODE_NO_CONSUMERS        = 313,
+    RMQ_REPLY_CODE_CONNECTION_FORCED   = 320,
+    RMQ_REPLY_CODE_INVALID_PATH        = 402,
+    RMQ_REPLY_CODE_ACCESS_REFUSED      = 403,
+    RMQ_REPLY_CODE_NOT_FOUND           = 404,
+    RMQ_REPLY_CODE_RESOURCE_LOCKED     = 405,
+    RMQ_REPLY_CODE_PRECONDITION_FAILED = 406,
+    RMQ_REPLY_CODE_FRAME_ERROR         = 501,
+    RMQ_REPLY_CODE_SYNTAX_ERROR        = 502,
+    RMQ_REPLY_CODE_COMMAND_INVALID     = 503,
+    RMQ_REPLY_CODE_CHANNEL_ERROR       = 504,
+    RMQ_REPLY_CODE_UNEXPECTED_FRAME    = 505,
+    RMQ_REPLY_CODE_RESOURCE_ERROR      = 506,
+    RMQ_REPLY_CODE_NOT_ALLOWED         = 530,
+    RMQ_REPLY_CODE_NOT_IMPLEMENTED     = 540,
+    RMQ_REPLY_CODE_INTERNAL_ERROR      = 541,
+};
+
+/* ---------------------------------------------------------------------------
+ *  Delivery
+ * ------------------------------------------------------------------------ */
+struct rmq_delivery;
+
+enum rmq_reply_code
+rmq_delivery_undeliverable_reply_code(const struct rmq_delivery *);
+const char *rmq_delivery_undeliverable_reply_text(const struct rmq_delivery *);
+
+/* ---------------------------------------------------------------------------
  *  Message
  * ------------------------------------------------------------------------ */
 enum rmq_property {
@@ -117,7 +151,6 @@ void rmq_msg_set_data(struct rmq_msg *, const void *, size_t);
  *  Client
  * ------------------------------------------------------------------------ */
 struct rmq_client;
-struct rmq_delivery;
 
 enum rmq_client_event {
     RMQ_CLIENT_EVENT_CONN_ESTABLISHED,
@@ -141,11 +174,16 @@ enum rmq_msg_action {
 typedef enum rmq_msg_action (*rmq_msg_cb)(struct rmq_client *,
                                           const struct rmq_delivery *,
                                           const struct rmq_msg *, void *);
+typedef void (*rmq_undeliverable_msg_cb)(struct rmq_client *,
+                                         const struct rmq_delivery *,
+                                         const struct rmq_msg *, void *);
 
 struct rmq_client *rmq_client_new(struct io_base *);
 void rmq_client_delete(struct rmq_client *);
 
 void rmq_client_set_event_cb(struct rmq_client *, rmq_client_event_cb, void *);
+void rmq_client_set_undeliverable_msg_cb(struct rmq_client *,
+                                         rmq_undeliverable_msg_cb, void *);
 void rmq_client_set_credentials(struct rmq_client *,
                                 const char *, const char *);
 void rmq_client_set_vhost(struct rmq_client *, const char *);
