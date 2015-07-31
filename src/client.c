@@ -765,6 +765,53 @@ RMQ_METHOD_HANDLER(channel_open_ok) {
     return 0;
 }
 
+RMQ_METHOD_HANDLER(channel_close) {
+    uint16_t reply_code, class_id, method_id;
+    enum rmq_method method;
+    char *reply_text;
+    char error[C_ERROR_BUFSZ];
+
+    if (rmq_fields_read(data, size, NULL,
+                        RMQ_FIELD_SHORT_UINT, &reply_code,
+                        RMQ_FIELD_SHORT_STRING, &reply_text,
+                        RMQ_FIELD_SHORT_UINT, &class_id,
+                        RMQ_FIELD_SHORT_UINT, &method_id,
+                        RMQ_FIELD_END) == -1) {
+        /* TODO error 505 */
+        c_set_error("invalid arguments: %s", c_get_error());
+        return -1;
+    }
+
+    method = RMQ_METHOD(class_id, method_id);
+
+    if (class_id > 0 && method_id > 0) {
+        snprintf(error, C_ERROR_BUFSZ, "channel exception: code %u: %s",
+                 reply_code, reply_text);
+    } else {
+        const char *method_string;
+        char tmp[32];
+
+        method_string = rmq_method_to_string(method);
+        if (!method_string) {
+            snprintf(tmp, sizeof(tmp), "%u.%u", class_id, method_id);
+            method_string = tmp;
+        }
+
+        snprintf(error, C_ERROR_BUFSZ, "channel exception: method %s failed "
+                 "with code %u: %s", method_string, reply_code, reply_text);
+    }
+
+    c_free(reply_text);
+
+    rmq_client_signal_event(client, RMQ_CLIENT_EVENT_ERROR, error);
+
+    rmq_client_send_method(client, RMQ_METHOD_CHANNEL_CLOSE_OK,
+                           RMQ_FIELD_END);
+
+    rmq_client_disconnect(client);
+    return 0;
+}
+
 RMQ_METHOD_HANDLER(basic_consume_ok) {
     return 0;
 }
@@ -879,6 +926,7 @@ rmq_client_on_method(struct rmq_client *client,
     RMQ_HANDLER(CONNECTION_CLOSE_OK, connection_close_ok);
 
     RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
+    RMQ_HANDLER(CHANNEL_CLOSE, channel_close);
 
     RMQ_HANDLER(BASIC_CONSUME_OK, basic_consume_ok);
     RMQ_HANDLER(BASIC_DELIVER, basic_deliver);
