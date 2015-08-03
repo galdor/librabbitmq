@@ -1095,6 +1095,8 @@ rmq_client_on_content(struct rmq_client *client,
     data_sz = delivery->msg->data_sz + frame->size;
     data = c_realloc(delivery->msg->data, data_sz);
 
+    memcpy(data + delivery->msg->data_sz, frame->payload, frame->size);
+
     delivery->msg->data = data;
     delivery->msg->data_sz = data_sz;
 
