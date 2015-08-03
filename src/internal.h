@@ -139,6 +139,8 @@ struct rmq_field_table {
 struct rmq_field_table *rmq_field_table_new(void);
 void rmq_field_table_delete(struct rmq_field_table *);
 
+struct rmq_field *rmq_field_table_get(const struct rmq_field_table *,
+                                      const char* );
 void rmq_field_table_add_nocopy(struct rmq_field_table *,
                                 char *, struct rmq_field *);
 

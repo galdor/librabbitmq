@@ -186,6 +186,71 @@ rmq_msg_delete(struct rmq_msg *msg) {
     c_free0(msg, sizeof(struct rmq_msg));
 }
 
+const char *
+rmq_msg_content_type(const struct rmq_msg *msg) {
+    return msg->properties.content_type;
+}
+
+const char *
+rmq_msg_content_encoding(const struct rmq_msg *msg) {
+    return msg->properties.content_encoding;
+}
+
+struct rmq_field *
+rmq_msg_content_header(const struct rmq_msg *msg, const char *name) {
+    return rmq_field_table_get(msg->properties.headers, name);
+}
+
+enum rmq_delivery_mode 
+rmq_msg_delivery_mode(const struct rmq_msg *msg) {
+    return msg->properties.delivery_mode;
+}
+
+uint8_t 
+rmq_msg_priority(const struct rmq_msg *msg) {
+    return msg->properties.priority;
+}
+
+const char *
+rmq_msg_correlation_id(const struct rmq_msg *msg) {
+    return msg->properties.correlation_id;
+}
+
+const char *
+rmq_msg_reply_to(const struct rmq_msg *msg) {
+    return msg->properties.reply_to;
+}
+
+const char *
+rmq_msg_expiration(const struct rmq_msg *msg) {
+    return msg->properties.expiration;
+}
+
+const char *
+rmq_msg_message_id(const struct rmq_msg *msg) {
+    return msg->properties.message_id;
+}
+
+uint64_t
+rmq_msg_timestamp(const struct rmq_msg *msg) {
+    return msg->properties.timestamp;
+}
+
+const char *
+rmq_msg_type(const struct rmq_msg *msg) {
+    return msg->properties.type;
+}
+
+const char *
+rmq_msg_user_id(const struct rmq_msg *msg) {
+    return msg->properties.user_id;
+}
+
+const char *
+rmq_msg_app_id(const struct rmq_msg *msg) {
+    return msg->properties.app_id;
+}
+
 void
 rmq_msg_set_content_type(struct rmq_msg *msg, const char *value) {
     rmq_properties_set_content_type(&msg->properties, value);

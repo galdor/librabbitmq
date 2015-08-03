@@ -131,6 +131,20 @@ enum rmq_delivery_mode {
 struct rmq_msg *rmq_msg_new(void);
 void rmq_msg_delete(struct rmq_msg *);
 
+const char *rmq_msg_content_type(const struct rmq_msg *);
+const char *rmq_msg_content_encoding(const struct rmq_msg *);
+struct rmq_field *rmq_msg_content_header(const struct rmq_msg *, const char *);
+enum rmq_delivery_mode rmq_msg_delivery_mode(const struct rmq_msg *);
+uint8_t rmq_msg_priority(const struct rmq_msg *);
+const char *rmq_msg_correlation_id(const struct rmq_msg *);
+const char *rmq_msg_reply_to(const struct rmq_msg *);
+const char *rmq_msg_expiration(const struct rmq_msg *);
+const char *rmq_msg_message_id(const struct rmq_msg *);
+uint64_t rmq_msg_timestamp(const struct rmq_msg *);
+const char *rmq_msg_type(const struct rmq_msg *);
+const char *rmq_msg_user_id(const struct rmq_msg *);
+const char *rmq_msg_app_id(const struct rmq_msg *);
+
 void rmq_msg_set_content_type(struct rmq_msg *, const char *);
 void rmq_msg_set_content_encoding(struct rmq_msg *, const char *);
 void rmq_msg_add_header_nocopy(struct rmq_msg *,

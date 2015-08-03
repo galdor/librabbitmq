@@ -1613,6 +1613,21 @@ rmq_field_table_delete(struct rmq_field_table *table) {
     c_free0(table, sizeof(struct rmq_field_table));
 }
 
+struct rmq_field *
+rmq_field_table_get(const struct rmq_field_table *table,
+                    const char *name) {
+    for (size_t i = 0; i < c_vector_length(table->pairs); i++) {
+        struct rmq_field_pair *pair;
+
+        pair = c_vector_entry(table->pairs, i);
+
+        if (strcmp(pair->name, name) == 0)
+            return pair->value;
+    }
+
+    return NULL;
+}
+
 void
 rmq_field_table_add_nocopy(struct rmq_field_table *table,
                            char *name, struct rmq_field *value) {
