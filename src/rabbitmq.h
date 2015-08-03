@@ -97,6 +97,9 @@ enum rmq_reply_code {
  * ------------------------------------------------------------------------ */
 struct rmq_delivery;
 
+const char *rmq_delivery_exchange(const struct rmq_delivery *);
+const char *rmq_delivery_routing_key(const struct rmq_delivery *);
+
 enum rmq_reply_code
 rmq_delivery_undeliverable_reply_code(const struct rmq_delivery *);
 const char *rmq_delivery_undeliverable_reply_text(const struct rmq_delivery *);

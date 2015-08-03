@@ -49,6 +49,16 @@ rmq_delivery_free(struct rmq_delivery *delivery) {
     memset(delivery, 0, sizeof(struct rmq_delivery));
 }
 
+const char *
+rmq_delivery_exchange(const struct rmq_delivery *delivery) {
+    return delivery->exchange;
+}
+
+const char *
+rmq_delivery_routing_key(const struct rmq_delivery *delivery) {
+    return delivery->routing_key;
+}
+
 enum rmq_reply_code
 rmq_delivery_undeliverable_reply_code(const struct rmq_delivery *delivery) {
     assert(delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN);
