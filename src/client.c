@@ -761,6 +761,8 @@ RMQ_METHOD_HANDLER(connection_tune) {
 RMQ_METHOD_HANDLER(connection_open_ok) {
     client->state = RMQ_CLIENT_STATE_CONNECTION_OPEN;
 
+    rmq_client_trace(client, "selected vhost %s", client->vhost);
+
     /* Open a channel */
     client->channel = 1;
 
