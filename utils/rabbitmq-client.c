@@ -219,7 +219,7 @@ rmqu_on_msg(struct rmq_client *client,
 
     printf("message received (%zu bytes)\n", size);
 
-    return RMQ_MSG_ACTION_OK;
+    return RMQ_MSG_ACTION_ACK;
 }
 
 static void

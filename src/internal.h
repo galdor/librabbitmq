@@ -411,7 +411,4 @@ void rmq_client_connection_close(struct rmq_client *,
                                  enum rmq_reply_code, const char *, ...)
     __attribute__ ((format(printf, 3, 4)));
 
-void rmq_client_ack(struct rmq_client *, uint64_t);
-void rmq_client_reject(struct rmq_client *, uint64_t, bool);
-
 #endif

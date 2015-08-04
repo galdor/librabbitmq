@@ -49,6 +49,12 @@ rmq_delivery_free(struct rmq_delivery *delivery) {
     memset(delivery, 0, sizeof(struct rmq_delivery));
 }
 
+uint64_t
+rmq_delivery_tag(const struct rmq_delivery *delivery) {
+    assert(delivery->type == RMQ_DELIVERY_TYPE_BASIC_DELIVER);
+    return delivery->u.basic_deliver.tag;
+}
+
 const char *
 rmq_delivery_exchange(const struct rmq_delivery *delivery) {
     return delivery->exchange;
@@ -361,12 +367,22 @@ rmq_client_ack(struct rmq_client *client, uint64_t tag) {
 }
 
 void
-rmq_client_reject(struct rmq_client *client, uint64_t tag, bool requeue) {
+rmq_client_reject(struct rmq_client *client, uint64_t tag) {
     uint8_t flags;
 
     flags = 0x00;
-    if (requeue)
-        flags |= 0x01;
+
+    rmq_client_send_method(client, RMQ_METHOD_BASIC_REJECT,
+                           RMQ_FIELD_LONG_LONG_UINT, tag,
+                           RMQ_FIELD_SHORT_SHORT_UINT, flags,
+                           RMQ_FIELD_END);
+}
+
+void
+rmq_client_requeue(struct rmq_client *client, uint64_t tag) {
+    uint8_t flags;
+
+    flags = 0x01; /* requeue */
 
     rmq_client_send_method(client, RMQ_METHOD_BASIC_REJECT,
                            RMQ_FIELD_LONG_LONG_UINT, tag,
@@ -1140,16 +1156,19 @@ rmq_client_on_content(struct rmq_client *client,
         client->has_current_delivery = false;
 
         switch (action) {
-        case RMQ_MSG_ACTION_OK:
+        case RMQ_MSG_ACTION_NONE:
+            break;
+
+        case RMQ_MSG_ACTION_ACK:
             rmq_client_ack(client, tag);
             break;
 
         case RMQ_MSG_ACTION_DROP:
-            rmq_client_reject(client, tag, false);
+            rmq_client_reject(client, tag);
             break;
 
         case RMQ_MSG_ACTION_REQUEUE:
-            rmq_client_reject(client, tag, true);
+            rmq_client_requeue(client, tag);
             break;
         }
     } else if (delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN) {

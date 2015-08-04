@@ -97,6 +97,8 @@ enum rmq_reply_code {
  * ------------------------------------------------------------------------ */
 struct rmq_delivery;
 
+uint64_t rmq_delivery_tag(const struct rmq_delivery *);
+
 const char *rmq_delivery_exchange(const struct rmq_delivery *);
 const char *rmq_delivery_routing_key(const struct rmq_delivery *);
 
@@ -183,7 +185,8 @@ typedef void (*rmq_client_event_cb)(struct rmq_client *, enum rmq_client_event,
                                     void *, void *);
 
 enum rmq_msg_action {
-    RMQ_MSG_ACTION_OK,
+    RMQ_MSG_ACTION_NONE,
+    RMQ_MSG_ACTION_ACK,
     RMQ_MSG_ACTION_DROP,
     RMQ_MSG_ACTION_REQUEUE,
 };
@@ -229,5 +232,9 @@ void rmq_client_subscribe(struct rmq_client *, const char *, uint8_t,
                           rmq_msg_cb, void *);
 
 void rmq_client_unsubscribe(struct rmq_client *, const char *);
+
+void rmq_client_ack(struct rmq_client *, uint64_t);
+void rmq_client_reject(struct rmq_client *, uint64_t);
+void rmq_client_requeue(struct rmq_client *, uint64_t);
 
 #endif
