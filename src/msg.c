@@ -330,7 +330,7 @@ rmq_msg_set_data_nocopy(struct rmq_msg *msg, void *data, size_t size) {
 
     msg->data = data;
     msg->data_sz = size;
-    msg->data_owned = false;
+    msg->data_owned = true;
 }
 
 void
