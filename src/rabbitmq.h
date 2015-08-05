@@ -187,7 +187,7 @@ typedef void (*rmq_client_event_cb)(struct rmq_client *, enum rmq_client_event,
 enum rmq_msg_action {
     RMQ_MSG_ACTION_NONE,
     RMQ_MSG_ACTION_ACK,
-    RMQ_MSG_ACTION_DROP,
+    RMQ_MSG_ACTION_REJECT,
     RMQ_MSG_ACTION_REQUEUE,
 };
 

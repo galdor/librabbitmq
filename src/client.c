@@ -1163,7 +1163,7 @@ rmq_client_on_content(struct rmq_client *client,
             rmq_client_ack(client, tag);
             break;
 
-        case RMQ_MSG_ACTION_DROP:
+        case RMQ_MSG_ACTION_REJECT:
             rmq_client_reject(client, tag);
             break;
 
