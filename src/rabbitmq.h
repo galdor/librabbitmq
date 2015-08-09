@@ -252,7 +252,6 @@ void rmq_client_requeue(struct rmq_client *, uint64_t);
 /* Queues */
 enum rmq_queue_option {
     RMQ_QUEUE_DEFAULT     = 0x00,
-    RMQ_QUEUE_PASSIVE     = 0x01,
     RMQ_QUEUE_DURABLE     = 0x02,
     RMQ_QUEUE_EXCLUSIVE   = 0x04,
     RMQ_QUEUE_AUTO_DELETE = 0x08,
