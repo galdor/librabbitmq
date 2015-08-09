@@ -1027,6 +1027,7 @@ rmq_client_on_method(struct rmq_client *client,
 #endif
 
     if (client->state == RMQ_CLIENT_STATE_CLOSING
+     && method != RMQ_METHOD_CHANNEL_CLOSE
      && method != RMQ_METHOD_CONNECTION_CLOSE
      && method != RMQ_METHOD_CONNECTION_CLOSE_OK) {
         rmq_client_trace(client, "ignoring method %u.%u %s since "
