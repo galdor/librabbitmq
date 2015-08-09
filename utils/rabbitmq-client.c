@@ -27,6 +27,7 @@ struct rmqu {
     struct rmq_client *client;
 
     bool do_exit;
+    bool verbose;
 
     const char *cmd_name;
     void (*cmd_exec)(int, char **);
@@ -36,6 +37,10 @@ struct rmqu {
 
 static struct rmqu rmqu;
 
+static void rmqu_trace(const char *, ...)
+    __attribute__ ((format(printf, 1, 2)));
+static void rmqu_error(const char *, ...)
+    __attribute__ ((format(printf, 1, 2)));
 static void rmqu_die(const char *, ...)
     __attribute__ ((format(printf, 1, 2), noreturn));
 
@@ -94,8 +99,9 @@ main(int argc, char **argv) {
                               "the user name", "name", "guest");
     c_command_line_add_option(cmdline, "w", "password",
                               "the password", "string", "guest");
-    c_command_line_add_option(cmdline, "v", "vhost",
+    c_command_line_add_option(cmdline, "i", "vhost",
                               "the virtual host", "vhost", "/");
+    c_command_line_add_flag(cmdline, "v", "verbose", "enable verbose mode");
 
     c_command_line_add_argument(cmdline, "the command to execute", "command");
 
@@ -114,6 +120,8 @@ main(int argc, char **argv) {
     user = c_command_line_option_value(cmdline, "user");
     password = c_command_line_option_value(cmdline, "password");
     vhost = c_command_line_option_value(cmdline, "vhost");
+
+    rmqu.verbose = c_command_line_is_option_set(cmdline, "verbose");
 
     /* Main */
     rmqu.cmd_name = c_command_line_argument_value(cmdline, 0);
@@ -188,6 +196,33 @@ main(int argc, char **argv) {
 }
 
 void
+rmqu_trace(const char *fmt, ...) {
+    va_list ap;
+
+    if (!rmqu.verbose)
+        return;
+
+    va_start(ap, fmt);
+    vfprintf(stdout, fmt, ap);
+    va_end(ap);
+
+    putchar('\n');
+}
+
+void
+rmqu_error(const char *fmt, ...) {
+    va_list ap;
+
+    fprintf(stderr, "error: ");
+
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+
+    putc('\n', stderr);
+}
+
+void
 rmqu_die(const char *fmt, ...) {
     va_list ap;
 
@@ -203,7 +238,7 @@ rmqu_die(const char *fmt, ...) {
 
 static void
 rmqu_on_signal(int signo, void *arg) {
-    printf("signal %d received\n", signo);
+    rmqu_trace("signal %d received\n", signo);
 
     switch (signo) {
     case SIGINT:
@@ -218,30 +253,30 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
                      void *data, void *arg) {
     switch (event) {
     case RMQ_CLIENT_EVENT_CONN_ESTABLISHED:
-        printf("connection established\n");
+        rmqu_trace("connection established");
         break;
 
     case RMQ_CLIENT_EVENT_CONN_FAILED:
-        printf("connection failed\n");
+        rmqu_trace("connection failed");
         rmqu.do_exit = true;
         break;
 
     case RMQ_CLIENT_EVENT_CONN_CLOSED:
-        printf("connection closed\n");
+        rmqu_trace("connection closed");
         rmqu.do_exit = true;
         break;
 
     case RMQ_CLIENT_EVENT_READY:
-        printf("ready\n");
+        rmqu_trace("ready");
         rmqu_on_client_ready();
         break;
 
     case RMQ_CLIENT_EVENT_ERROR:
-        fprintf(stderr, "error: %s\n", (const char *)data);
+        rmqu_error("%s", (const char *)data);
         break;
 
     case RMQ_CLIENT_EVENT_TRACE:
-        fprintf(stderr, "%s\n", (const char *)data);
+        rmqu_trace("%s", (const char *)data);
         break;
     }
 }
@@ -260,7 +295,7 @@ rmqu_on_msg(struct rmq_client *client,
 
     data = rmq_msg_data(msg, &size);
 
-    printf("message received (%zu bytes)\n", size);
+    rmqu_trace("message received (%zu bytes)", size);
 
     return RMQ_MSG_ACTION_ACK;
 }
@@ -276,7 +311,7 @@ rmqu_on_undeliverable_msg(struct rmq_client *client,
     data = rmq_msg_data(msg, &size);
     text = rmq_delivery_undeliverable_reply_text(delivery);
 
-    printf("message cannot be delivered: %s\n", text);
+    rmqu_error("message cannot be delivered: %s", text);
 }
 
 static void
