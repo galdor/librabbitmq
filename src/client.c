@@ -238,14 +238,13 @@ rmq_client_connect(struct rmq_client *client,
 
 void
 rmq_client_disconnect(struct rmq_client *client) {
-    if (io_tcp_client_is_connected(client->tcp_client)) {
-        rmq_client_connection_close(client, RMQ_REPLY_CODE_SUCCESS, "goodbye");
+    if (!io_tcp_client_is_connected(client->tcp_client))
+        return;
 
-        /* TODO Timeout in case the server never sends Connection.Close-Ok and
-         * does not close the connection */
-    } else {
-        io_tcp_client_disconnect(client->tcp_client);
-    }
+    rmq_client_connection_close(client, RMQ_REPLY_CODE_SUCCESS, "goodbye");
+
+    /* TODO Timeout in case the server never sends Connection.Close-Ok and
+     * does not close the connection */
 }
 
 void
