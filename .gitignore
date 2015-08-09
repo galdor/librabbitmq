@@ -4,4 +4,4 @@
 session.vim
 .tags
 
-/utils/rabbitmq-client
+/utils/rmq-client
