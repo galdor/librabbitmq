@@ -428,6 +428,8 @@ rmq_client_subscribe(struct rmq_client *client, const char *queue,
     c_hash_table_insert(client->consumers_by_tag, consumer->tag, consumer);
     c_hash_table_insert(client->consumers_by_queue, consumer->queue, consumer);
 
+    options |= 0x08; /* no-wait */
+
     arguments = rmq_field_table_new();
 
     rmq_client_send_method(client, RMQ_METHOD_BASIC_CONSUME,
@@ -901,10 +903,6 @@ RMQ_METHOD_HANDLER(channel_close) {
     return 0;
 }
 
-RMQ_METHOD_HANDLER(basic_consume_ok) {
-    return 0;
-}
-
 RMQ_METHOD_HANDLER(basic_deliver) {
     struct rmq_delivery delivery;
     struct rmq_consumer *consumer;
@@ -1057,7 +1055,6 @@ rmq_client_on_method(struct rmq_client *client,
     RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
     RMQ_HANDLER(CHANNEL_CLOSE, channel_close);
 
-    RMQ_HANDLER(BASIC_CONSUME_OK, basic_consume_ok);
     RMQ_HANDLER(BASIC_DELIVER, basic_deliver);
     RMQ_HANDLER(BASIC_RETURN, basic_return);
 

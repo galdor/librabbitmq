@@ -237,7 +237,6 @@ enum rmq_subscribe_option {
     RMQ_SUBSCRIBE_NO_LOCAL  = 0x01,
     RMQ_SUBSCRIBE_NO_ACK    = 0x02,
     RMQ_SUBSCRIBE_EXCLUSIVE = 0x04,
-    RMQ_SUBSCRIBE_NO_WAIT   = 0x08,
 };
 
 void rmq_client_subscribe(struct rmq_client *, const char *, uint8_t,
