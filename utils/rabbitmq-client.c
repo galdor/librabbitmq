@@ -188,7 +188,7 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
 
 static void
 rmqu_on_client_ready(void) {
-#if 1
+#if 0
     struct rmq_msg *msg;
     const char *string;
 
@@ -205,6 +205,14 @@ rmqu_on_client_ready(void) {
 #if 0
     rmq_client_subscribe(rmqu.client, "messages", RMQ_SUBSCRIBE_DEFAULT,
                          rmqu_on_msg, NULL);
+#endif
+
+#if 0
+    rmq_client_declare_queue(rmqu.client, "foo", RMQ_QUEUE_DEFAULT, NULL);
+#endif
+
+#if 1
+    rmq_client_delete_queue(rmqu.client, "foo", RMQ_QUEUE_DELETE_DEFAULT);
 #endif
 }
 

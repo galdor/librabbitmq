@@ -21,6 +21,17 @@
 #include <io.h>
 
 /* ---------------------------------------------------------------------------
+ *  Table
+ * ------------------------------------------------------------------------ */
+struct rmq_field_table *rmq_field_table_new(void);
+void rmq_field_table_delete(struct rmq_field_table *);
+
+struct rmq_field *rmq_field_table_get(const struct rmq_field_table *,
+                                      const char* );
+void rmq_field_table_add_nocopy(struct rmq_field_table *,
+                                char *, struct rmq_field *);
+
+/* ---------------------------------------------------------------------------
  *  Field
  * ------------------------------------------------------------------------ */
 enum rmq_field_type {
@@ -211,6 +222,7 @@ void rmq_client_set_vhost(struct rmq_client *, const char *);
 int rmq_client_connect(struct rmq_client *, const char *, uint16_t);
 void rmq_client_disconnect(struct rmq_client *);
 
+/* Base */
 enum rmq_publish_option {
     RMQ_PUBLISH_DEFAULT   = 0x00,
     RMQ_PUBLISH_MANDATORY = 0x01,
@@ -233,8 +245,29 @@ void rmq_client_subscribe(struct rmq_client *, const char *, uint8_t,
 
 void rmq_client_unsubscribe(struct rmq_client *, const char *);
 
+/* Message handling */
 void rmq_client_ack(struct rmq_client *, uint64_t);
 void rmq_client_reject(struct rmq_client *, uint64_t);
 void rmq_client_requeue(struct rmq_client *, uint64_t);
+
+/* Queues */
+enum rmq_queue_option {
+    RMQ_QUEUE_DEFAULT     = 0x00,
+    RMQ_QUEUE_PASSIVE     = 0x01,
+    RMQ_QUEUE_DURABLE     = 0x02,
+    RMQ_QUEUE_EXCLUSIVE   = 0x04,
+    RMQ_QUEUE_AUTO_DELETE = 0x08,
+};
+
+void rmq_client_declare_queue(struct rmq_client *, const char *, uint8_t,
+                              const struct rmq_field_table *);
+
+enum rmq_queue_delete_option {
+    RMQ_QUEUE_DELETE_DEFAULT   = 0x00,
+    RMQ_QUEUE_DELETE_IF_UNUSED = 0x01,
+    RMQ_QUEUE_DELETE_IF_EMPTY  = 0x02,
+};
+
+void rmq_client_delete_queue(struct rmq_client *, const char *, uint8_t);
 
 #endif

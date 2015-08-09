@@ -464,6 +464,41 @@ rmq_client_unsubscribe(struct rmq_client *client, const char *queue) {
                            RMQ_FIELD_END);
 }
 
+void
+rmq_client_declare_queue(struct rmq_client *client, const char *name,
+                         uint8_t options, const struct rmq_field_table *args) {
+    struct rmq_field_table *empty_table;
+
+    options |= 0x10; /* no-wait */
+
+    if (!args) {
+        empty_table = rmq_field_table_new();
+        args = empty_table;
+    }
+
+    rmq_client_send_method(client, RMQ_METHOD_QUEUE_DECLARE,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, name,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
+                           RMQ_FIELD_TABLE, args,
+                           RMQ_FIELD_END);
+
+    if (!args)
+        rmq_field_table_delete(empty_table);
+}
+
+void
+rmq_client_delete_queue(struct rmq_client *client, const char *name,
+                        uint8_t options) {
+    options |= 0x04; /* no-wait */
+
+    rmq_client_send_method(client, RMQ_METHOD_QUEUE_DELETE,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, name,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
+                           RMQ_FIELD_END);
+}
+
 static void
 rmq_client_signal_event(struct rmq_client *client,
                         enum rmq_client_event event, void *arg) {

@@ -136,14 +136,6 @@ struct rmq_field_table {
     struct c_vector *pairs;
 };
 
-struct rmq_field_table *rmq_field_table_new(void);
-void rmq_field_table_delete(struct rmq_field_table *);
-
-struct rmq_field *rmq_field_table_get(const struct rmq_field_table *,
-                                      const char* );
-void rmq_field_table_add_nocopy(struct rmq_field_table *,
-                                char *, struct rmq_field *);
-
 /* Message properties */
 struct rmq_properties {
     uint16_t mask; /* enum rmq_msg_property */
@@ -237,6 +229,17 @@ enum rmq_method {
     RMQ_METHOD_CHANNEL_FLOW_OK      = RMQ_METHOD(RMQ_CLASS_CHANNEL,  21),
     RMQ_METHOD_CHANNEL_CLOSE        = RMQ_METHOD(RMQ_CLASS_CHANNEL,  40),
     RMQ_METHOD_CHANNEL_CLOSE_OK     = RMQ_METHOD(RMQ_CLASS_CHANNEL,  41),
+
+    RMQ_METHOD_QUEUE_DECLARE        = RMQ_METHOD(RMQ_CLASS_QUEUE,  10),
+    RMQ_METHOD_QUEUE_DECLARE_OK     = RMQ_METHOD(RMQ_CLASS_QUEUE,  11),
+    RMQ_METHOD_QUEUE_BIND           = RMQ_METHOD(RMQ_CLASS_QUEUE,  20),
+    RMQ_METHOD_QUEUE_BIND_OK        = RMQ_METHOD(RMQ_CLASS_QUEUE,  21),
+    RMQ_METHOD_QUEUE_PURGE          = RMQ_METHOD(RMQ_CLASS_QUEUE,  30),
+    RMQ_METHOD_QUEUE_PURGE_OK       = RMQ_METHOD(RMQ_CLASS_QUEUE,  31),
+    RMQ_METHOD_QUEUE_DELETE         = RMQ_METHOD(RMQ_CLASS_QUEUE,  40),
+    RMQ_METHOD_QUEUE_DELETE_OK      = RMQ_METHOD(RMQ_CLASS_QUEUE,  41),
+    RMQ_METHOD_QUEUE_UNBIND         = RMQ_METHOD(RMQ_CLASS_QUEUE,  50),
+    RMQ_METHOD_QUEUE_UNBIND_OK      = RMQ_METHOD(RMQ_CLASS_QUEUE,  51),
 
     RMQ_METHOD_BASIC_QOS            = RMQ_METHOD(RMQ_CLASS_BASIC,  10),
     RMQ_METHOD_BASIC_QOS_OK         = RMQ_METHOD(RMQ_CLASS_BASIC,  11),
