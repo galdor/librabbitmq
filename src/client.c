@@ -826,6 +826,8 @@ RMQ_METHOD_HANDLER(connection_open_ok) {
 }
 
 RMQ_METHOD_HANDLER(connection_close) {
+    /* TODO payload (connection exception) */
+
     rmq_client_send_method(client, RMQ_METHOD_CONNECTION_CLOSE_OK,
                            RMQ_FIELD_END);
 

@@ -27,6 +27,11 @@ struct rmqu {
     struct rmq_client *client;
 
     bool do_exit;
+
+    const char *cmd_name;
+    void (*cmd_exec)(int, char **);
+    int argc;
+    char **argv;
 };
 
 static struct rmqu rmqu;
@@ -47,16 +52,42 @@ static void rmqu_on_undeliverable_msg(struct rmq_client *,
                                       const struct rmq_delivery *,
                                       const struct rmq_msg *, void *);
 
+struct rmqu_cmd {
+    const char *name;
+    void (*exec)(int, char **);
+};
+
+static void rmqu_cmd_declare_queue(int, char **);
+static void rmqu_cmd_delete_queue(int, char **);
+
+static struct rmqu_cmd rmqu_cmds[] = {
+    {"declare-queue", rmqu_cmd_declare_queue},
+    {"delete-queue",  rmqu_cmd_delete_queue},
+};
+size_t rmqu_nb_cmds = sizeof(rmqu_cmds) / sizeof(rmqu_cmds[0]);
+
 int
 main(int argc, char **argv) {
     struct c_command_line *cmdline;
     const char *host, *port_string;
     const char *user, *password, *vhost;
     uint16_t port;
+    int ret;
 
     /* Command line */
     cmdline = c_command_line_new();
 
+    c_command_line_set_trailing_text(cmdline, "COMMANDS\n\n"
+                                     "help                   "
+                                     "  display help\n"
+                                     "declare-queue          "
+                                     "  create a queue\n"
+                                     "delete-queue           "
+                                     "  delete a queue\n"
+                                    );
+
+    c_command_line_add_option(cmdline, "s", "host",
+                              "the host to connect to", "host", "localhost");
     c_command_line_add_option(cmdline, "p", "port",
                               "the port to connect to", "port", "5672");
     c_command_line_add_option(cmdline, "u", "user",
@@ -66,12 +97,16 @@ main(int argc, char **argv) {
     c_command_line_add_option(cmdline, "v", "vhost",
                               "the virtual host", "vhost", "/");
 
-    c_command_line_add_argument(cmdline, "the host to connect to", "host");
+    c_command_line_add_argument(cmdline, "the command to execute", "command");
 
-    if (c_command_line_parse(cmdline, argc, argv) == -1)
+    ret = c_command_line_parse(cmdline, argc, argv);
+    if (ret == -1)
         rmqu_die("%s", c_get_error());
 
-    host = c_command_line_argument_value(cmdline, 0);
+    argc -= ret - 1; /* keep the command name */
+    argv += ret - 1;
+
+    host = c_command_line_option_value(cmdline, "host");
     port_string = c_command_line_option_value(cmdline, "port");
     if (c_parse_u16(port_string, &port, NULL) == -1)
         rmqu_die("invalid port: %s", c_get_error());
@@ -79,6 +114,31 @@ main(int argc, char **argv) {
     user = c_command_line_option_value(cmdline, "user");
     password = c_command_line_option_value(cmdline, "password");
     vhost = c_command_line_option_value(cmdline, "vhost");
+
+    /* Main */
+    rmqu.cmd_name = c_command_line_argument_value(cmdline, 0);
+    if (strcmp(rmqu.cmd_name, "help") == 0) {
+        c_command_line_usage_print(cmdline, stdout);
+        return 0;
+    }
+
+    for (size_t i = 0; i < rmqu_nb_cmds; i++) {
+        if (strcmp(rmqu_cmds[i].name, rmqu.cmd_name) == 0) {
+            rmqu.cmd_exec = rmqu_cmds[i].exec;
+            break;
+        }
+    }
+
+    if (!rmqu.cmd_exec)
+        rmqu_die("unknown command '%s'", rmqu.cmd_name);
+
+    rmqu.argc = argc;
+    rmqu.argv = argv;
+
+    if (argc >= 2
+     && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) {
+        rmqu.cmd_exec(rmqu.argc, rmqu.argv);
+    }
 
     /* IO base */
     rmqu.io_base = io_base_new();
@@ -188,32 +248,7 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
 
 static void
 rmqu_on_client_ready(void) {
-#if 0
-    struct rmq_msg *msg;
-    const char *string;
-
-    string = "hello world";
-
-    msg = rmq_msg_new();
-    rmq_msg_set_content_type(msg, "text/plain");
-    rmq_msg_add_header_nocopy(msg, "foo", rmq_field_new_long_int(42));
-    rmq_msg_set_data_nocopy(msg, (void *)string, strlen(string));
-
-    rmq_client_publish(rmqu.client, msg, "messages", "", RMQ_PUBLISH_MANDATORY);
-#endif
-
-#if 0
-    rmq_client_subscribe(rmqu.client, "messages", RMQ_SUBSCRIBE_DEFAULT,
-                         rmqu_on_msg, NULL);
-#endif
-
-#if 0
-    rmq_client_declare_queue(rmqu.client, "foo", RMQ_QUEUE_DEFAULT, NULL);
-#endif
-
-#if 1
-    rmq_client_delete_queue(rmqu.client, "foo", RMQ_QUEUE_DELETE_DEFAULT);
-#endif
+    rmqu.cmd_exec(rmqu.argc, rmqu.argv);
 }
 
 static enum rmq_msg_action
@@ -242,4 +277,88 @@ rmqu_on_undeliverable_msg(struct rmq_client *client,
     text = rmq_delivery_undeliverable_reply_text(delivery);
 
     printf("message cannot be delivered: %s\n", text);
+}
+
+static void
+rmqu_cmd_declare_queue(int argc, char **argv) {
+    struct c_command_line *cmdline;
+    bool durable, exclusive, auto_delete;
+    const char *name;
+    uint8_t options;
+
+    /* Command line */
+    cmdline = c_command_line_new();
+
+    c_command_line_add_flag(cmdline, "d", "durable",
+                            "create a durable queue");
+    c_command_line_add_flag(cmdline, "e", "exclusive",
+                            "create an exclusive queue");
+    c_command_line_add_flag(cmdline, "a", "auto-delete",
+                            "automatically delete the queue when it has "
+                            "no consumer");
+
+    c_command_line_add_argument(cmdline, "the name of the queue", "name");
+
+    if (c_command_line_parse(cmdline, argc, argv) == -1)
+        rmqu_die("%s", c_get_error());
+
+    durable = c_command_line_is_option_set(cmdline, "durable");
+    exclusive = c_command_line_is_option_set(cmdline, "exclusive");
+    auto_delete = c_command_line_is_option_set(cmdline, "auto-delete");
+
+    name = c_command_line_argument_value(cmdline, 0);
+
+    /* Main */
+    options = RMQ_QUEUE_DEFAULT;
+
+    if (durable)
+        options |= RMQ_QUEUE_DURABLE;
+    if (exclusive)
+        options |= RMQ_QUEUE_EXCLUSIVE;
+    if (auto_delete)
+        options |= RMQ_QUEUE_AUTO_DELETE;
+
+    rmq_client_declare_queue(rmqu.client, name, options, NULL);
+    rmq_client_disconnect(rmqu.client);
+
+    c_command_line_delete(cmdline);
+}
+
+static void
+rmqu_cmd_delete_queue(int argc, char **argv) {
+    struct c_command_line *cmdline;
+    bool if_unused, if_empty;
+    const char *name;
+    uint8_t options;
+
+    /* Command line */
+    cmdline = c_command_line_new();
+
+    c_command_line_add_flag(cmdline, "u", "if-unused",
+                            "only delete the queue if it has no consumer");
+    c_command_line_add_flag(cmdline, "e", "if-empty",
+                            "only delete the queue if it is empty");
+
+    c_command_line_add_argument(cmdline, "the name of the queue", "name");
+
+    if (c_command_line_parse(cmdline, argc, argv) == -1)
+        rmqu_die("%s", c_get_error());
+
+    if_unused = c_command_line_is_option_set(cmdline, "if-unused");
+    if_empty = c_command_line_is_option_set(cmdline, "if-empty");
+
+    name = c_command_line_argument_value(cmdline, 0);
+
+    /* Main */
+    options = RMQ_QUEUE_DELETE_DEFAULT;
+
+    if (if_unused)
+        options |= RMQ_QUEUE_DELETE_IF_UNUSED;
+    if (if_empty)
+        options |= RMQ_QUEUE_DELETE_IF_EMPTY;
+
+    rmq_client_delete_queue(rmqu.client, name, options);
+    rmq_client_disconnect(rmqu.client);
+
+    c_command_line_delete(cmdline);
 }
