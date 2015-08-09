@@ -472,7 +472,9 @@ rmq_client_declare_queue(struct rmq_client *client, const char *name,
 
     options |= 0x10; /* no-wait */
 
-    if (!args) {
+    if (args) {
+        empty_table = NULL;
+    } else {
         empty_table = rmq_field_table_new();
         args = empty_table;
     }
@@ -484,8 +486,7 @@ rmq_client_declare_queue(struct rmq_client *client, const char *name,
                            RMQ_FIELD_TABLE, args,
                            RMQ_FIELD_END);
 
-    if (!args)
-        rmq_field_table_delete(empty_table);
+    rmq_field_table_delete(empty_table);
 }
 
 void
