@@ -65,6 +65,12 @@ rmq_delivery_routing_key(const struct rmq_delivery *delivery) {
     return delivery->routing_key;
 }
 
+bool
+rmq_delivery_is_redelivered(const struct rmq_delivery *delivery) {
+    assert(delivery->type == RMQ_DELIVERY_TYPE_BASIC_DELIVER);
+    return delivery->u.basic_deliver.redelivered;
+}
+
 enum rmq_reply_code
 rmq_delivery_undeliverable_reply_code(const struct rmq_delivery *delivery) {
     assert(delivery->type == RMQ_DELIVERY_TYPE_BASIC_RETURN);
