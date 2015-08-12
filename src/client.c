@@ -253,6 +253,11 @@ rmq_client_disconnect(struct rmq_client *client) {
      * does not close the connection */
 }
 
+bool
+rmq_client_is_ready(const struct rmq_client *client) {
+    return client->state == RMQ_CLIENT_STATE_READY;
+}
+
 void
 rmq_client_send_frame(struct rmq_client *client, enum rmq_frame_type type,
                       uint16_t channel, const void *data, size_t size) {
