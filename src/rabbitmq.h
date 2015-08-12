@@ -223,6 +223,7 @@ void rmq_client_set_vhost(struct rmq_client *, const char *);
 
 int rmq_client_connect(struct rmq_client *, const char *, uint16_t);
 void rmq_client_disconnect(struct rmq_client *);
+int rmq_client_reconnect(struct rmq_client *);
 
 bool rmq_client_is_ready(const struct rmq_client *);
 

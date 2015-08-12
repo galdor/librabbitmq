@@ -253,6 +253,11 @@ rmq_client_disconnect(struct rmq_client *client) {
      * does not close the connection */
 }
 
+int
+rmq_client_reconnect(struct rmq_client *client) {
+    return io_tcp_client_reconnect(client->tcp_client);
+}
+
 bool
 rmq_client_is_ready(const struct rmq_client *client) {
     return client->state == RMQ_CLIENT_STATE_READY;
