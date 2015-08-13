@@ -844,7 +844,44 @@ RMQ_METHOD_HANDLER(connection_open_ok) {
 }
 
 RMQ_METHOD_HANDLER(connection_close) {
-    /* TODO payload (connection exception) */
+    uint16_t reply_code, class_id, method_id;
+    enum rmq_method method;
+    char *reply_text;
+    char error[C_ERROR_BUFSZ];
+
+    if (rmq_fields_read(data, size, NULL,
+                        RMQ_FIELD_SHORT_UINT, &reply_code,
+                        RMQ_FIELD_SHORT_STRING, &reply_text,
+                        RMQ_FIELD_SHORT_UINT, &class_id,
+                        RMQ_FIELD_SHORT_UINT, &method_id,
+                        RMQ_FIELD_END) == -1) {
+        /* TODO error 505 */
+        c_set_error("invalid arguments: %s", c_get_error());
+        return -1;
+    }
+
+    method = RMQ_METHOD(class_id, method_id);
+
+    if (class_id > 0 && method_id > 0) {
+        const char *method_string;
+        char tmp[32];
+
+        method_string = rmq_method_to_string(method);
+        if (!method_string) {
+            snprintf(tmp, sizeof(tmp), "%u.%u", class_id, method_id);
+            method_string = tmp;
+        }
+
+        snprintf(error, C_ERROR_BUFSZ, "connection exception: method %s failed "
+                 "with code %u: %s", method_string, reply_code, reply_text);
+    } else {
+        snprintf(error, C_ERROR_BUFSZ, "connection exception: code %u: %s",
+                 reply_code, reply_text);
+    }
+
+    c_free(reply_text);
+
+    rmq_client_signal_event(client, RMQ_CLIENT_EVENT_ERROR, error);
 
     rmq_client_send_method(client, RMQ_METHOD_CONNECTION_CLOSE_OK,
                            RMQ_FIELD_END);
