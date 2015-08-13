@@ -896,9 +896,6 @@ RMQ_METHOD_HANDLER(channel_close) {
     method = RMQ_METHOD(class_id, method_id);
 
     if (class_id > 0 && method_id > 0) {
-        snprintf(error, C_ERROR_BUFSZ, "channel exception: code %u: %s",
-                 reply_code, reply_text);
-    } else {
         const char *method_string;
         char tmp[32];
 
@@ -910,6 +907,9 @@ RMQ_METHOD_HANDLER(channel_close) {
 
         snprintf(error, C_ERROR_BUFSZ, "channel exception: method %s failed "
                  "with code %u: %s", method_string, reply_code, reply_text);
+    } else {
+        snprintf(error, C_ERROR_BUFSZ, "channel exception: code %u: %s",
+                 reply_code, reply_text);
     }
 
     c_free(reply_text);
