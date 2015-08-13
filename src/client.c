@@ -616,6 +616,8 @@ static void
 rmq_client_on_conn_established(struct rmq_client *client) {
     client->state = RMQ_CLIENT_STATE_CONNECTED;
 
+    client->channel = 0;
+
     rmq_delivery_free(&client->current_delivery);
     client->has_current_delivery = false;
 
