@@ -285,17 +285,14 @@ rmq_client_send_frame(struct rmq_client *client, enum rmq_frame_type type,
 }
 
 void
-rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
+rmq_client_vsend_method_on_channel(struct rmq_client *client, uint16_t channel,
+                                   enum rmq_method method, va_list ap) {
     struct rmq_method_frame method_frame;
     struct c_buffer *args_buf, *buf;
-    va_list ap;
 
     /* Args */
     args_buf = c_buffer_new();
-
-    va_start(ap, method);
     rmq_fields_vwrite(args_buf, ap);
-    va_end(ap);
 
     /* Method frame */
     rmq_method_frame_init(&method_frame);
@@ -309,11 +306,30 @@ rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
     buf = c_buffer_new();
     rmq_method_frame_write(&method_frame, buf);
 
-    rmq_client_send_frame(client, RMQ_FRAME_TYPE_METHOD, client->channel,
+    rmq_client_send_frame(client, RMQ_FRAME_TYPE_METHOD, channel,
                           c_buffer_data(buf), c_buffer_length(buf));
 
     c_buffer_delete(args_buf);
     c_buffer_delete(buf);
+}
+
+void
+rmq_client_send_method_on_channel(struct rmq_client *client, uint16_t channel,
+                                  enum rmq_method method, ...) {
+    va_list ap;
+
+    va_start(ap, method);
+    rmq_client_vsend_method_on_channel(client, channel, method, ap);
+    va_end(ap);
+}
+
+void
+rmq_client_send_method(struct rmq_client *client, enum rmq_method method, ...) {
+    va_list ap;
+
+    va_start(ap, method);
+    rmq_client_vsend_method_on_channel(client, client->channel, method, ap);
+    va_end(ap);
 }
 
 void
@@ -359,12 +375,12 @@ rmq_client_connection_close(struct rmq_client *client,
     vsnprintf(text, sizeof(text), fmt, ap);
     va_end(ap);
 
-    rmq_client_send_method(client, RMQ_METHOD_CONNECTION_CLOSE,
-                           RMQ_FIELD_SHORT_UINT, code,
-                           RMQ_FIELD_SHORT_STRING, text,
-                           RMQ_FIELD_SHORT_UINT, 0, /* class id */
-                           RMQ_FIELD_SHORT_UINT, 0, /* method id */
-                           RMQ_FIELD_END);
+    rmq_client_send_method_on_channel(client, 0, RMQ_METHOD_CONNECTION_CLOSE,
+                                      RMQ_FIELD_SHORT_UINT, code,
+                                      RMQ_FIELD_SHORT_STRING, text,
+                                      RMQ_FIELD_SHORT_UINT, 0, /* class id */
+                                      RMQ_FIELD_SHORT_UINT, 0, /* method id */
+                                      RMQ_FIELD_END);
 
     client->state = RMQ_CLIENT_STATE_CLOSING;
 }
@@ -883,8 +899,8 @@ RMQ_METHOD_HANDLER(connection_close) {
 
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_ERROR, error);
 
-    rmq_client_send_method(client, RMQ_METHOD_CONNECTION_CLOSE_OK,
-                           RMQ_FIELD_END);
+    rmq_client_send_method_on_channel(client, 0, RMQ_METHOD_CONNECTION_CLOSE_OK,
+                                      RMQ_FIELD_END);
 
     io_tcp_client_disconnect(client->tcp_client);
     return 0;

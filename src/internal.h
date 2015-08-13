@@ -405,6 +405,10 @@ struct rmq_client {
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,
                            uint16_t, const void *, size_t);
+void rmq_client_vsend_method_on_channel(struct rmq_client *, uint16_t,
+                                        enum rmq_method, va_list);
+void rmq_client_send_method_on_channel(struct rmq_client *, uint16_t,
+                                       enum rmq_method, ...);
 void rmq_client_send_method(struct rmq_client *, enum rmq_method, ...);
 void rmq_client_send_header(struct rmq_client *, uint16_t, uint64_t,
                             const struct rmq_properties *);
