@@ -273,4 +273,9 @@ enum rmq_queue_delete_option {
 
 void rmq_client_delete_queue(struct rmq_client *, const char *, uint8_t);
 
+void rmq_client_bind_queue(struct rmq_client *, const char *, const char *,
+                           const char *, const struct rmq_field_table *);
+void rmq_client_unbind_queue(struct rmq_client *, const char *, const char *,
+                             const char *, const struct rmq_field_table *);
+
 #endif

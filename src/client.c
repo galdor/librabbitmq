@@ -533,6 +533,42 @@ rmq_client_delete_queue(struct rmq_client *client, const char *name,
                            RMQ_FIELD_END);
 }
 
+void
+rmq_client_bind_queue(struct rmq_client *client, const char *queue,
+                      const char *exchange, const char *routing_key,
+                      const struct rmq_field_table *args) {
+    uint8_t options;
+
+    options = 0x01; /* no-wait */
+
+    rmq_client_send_method(client, RMQ_METHOD_QUEUE_BIND,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, queue,
+                           RMQ_FIELD_SHORT_STRING, exchange,
+                           RMQ_FIELD_SHORT_STRING, routing_key,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
+                           RMQ_FIELD_TABLE, args,
+                           RMQ_FIELD_END);
+}
+
+void
+rmq_client_unbind_queue(struct rmq_client *client, const char *queue,
+                        const char *exchange, const char *routing_key,
+                        const struct rmq_field_table *args) {
+    uint8_t options;
+
+    options = 0x01; /* no-wait */
+
+    rmq_client_send_method(client, RMQ_METHOD_QUEUE_BIND,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, queue,
+                           RMQ_FIELD_SHORT_STRING, exchange,
+                           RMQ_FIELD_SHORT_STRING, routing_key,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
+                           RMQ_FIELD_TABLE, args,
+                           RMQ_FIELD_END);
+}
+
 static void
 rmq_client_signal_event(struct rmq_client *client,
                         enum rmq_client_event event, void *arg) {
