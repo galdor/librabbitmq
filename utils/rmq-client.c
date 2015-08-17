@@ -20,7 +20,7 @@
 #include <core.h>
 #include <io.h>
 
-#include "rabbitmq.h"
+#include "../src/rabbitmq.h"
 
 struct rmqu {
     struct io_base *io_base;
