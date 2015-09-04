@@ -649,7 +649,7 @@ rmq_client_unbind_queue(struct rmq_client *client, const char *queue,
         args = empty_table;
     }
 
-    rmq_client_send_method(client, RMQ_METHOD_QUEUE_BIND,
+    rmq_client_send_method(client, RMQ_METHOD_QUEUE_UNBIND,
                            RMQ_FIELD_SHORT_UINT, 0, /* reserved */
                            RMQ_FIELD_SHORT_STRING, queue,
                            RMQ_FIELD_SHORT_STRING, exchange,
