@@ -66,12 +66,16 @@ static void rmqu_cmd_declare_exchange(int, char **);
 static void rmqu_cmd_delete_exchange(int, char **);
 static void rmqu_cmd_declare_queue(int, char **);
 static void rmqu_cmd_delete_queue(int, char **);
+static void rmqu_cmd_bind_queue(int, char **);
+static void rmqu_cmd_unbind_queue(int, char **);
 
 static struct rmqu_cmd rmqu_cmds[] = {
     {"declare-exchange", rmqu_cmd_declare_exchange},
     {"delete-exchange", rmqu_cmd_delete_exchange},
     {"declare-queue", rmqu_cmd_declare_queue},
     {"delete-queue", rmqu_cmd_delete_queue},
+    {"bind-queue", rmqu_cmd_bind_queue},
+    {"unbind-queue", rmqu_cmd_unbind_queue},
 };
 size_t rmqu_nb_cmds = sizeof(rmqu_cmds) / sizeof(rmqu_cmds[0]);
 
@@ -97,6 +101,10 @@ main(int argc, char **argv) {
                                      "  create a queue\n"
                                      "delete-queue           "
                                      "  delete a queue\n"
+                                     "bind-queue             "
+                                     "  bind a queue to an exchange\n"
+                                     "unbind-queue           "
+                                     "  unbind a queue from an exchange\n"
                                     );
 
     c_command_line_add_option(cmdline, "s", "host",
@@ -492,6 +500,60 @@ rmqu_cmd_delete_queue(int argc, char **argv) {
         options |= RMQ_QUEUE_DELETE_IF_EMPTY;
 
     rmq_client_delete_queue(rmqu.client, name, options);
+    rmq_client_disconnect(rmqu.client);
+
+    c_command_line_delete(cmdline);
+}
+
+static void
+rmqu_cmd_bind_queue(int argc, char **argv) {
+    struct c_command_line *cmdline;
+    const char *queue, *exchange, *routing_key;
+
+    /* Command line */
+    cmdline = c_command_line_new();
+
+    c_command_line_add_argument(cmdline, "the name of the queue", "queue");
+    c_command_line_add_argument(cmdline, "the name of the exchange",
+                                "exchange");
+    c_command_line_add_argument(cmdline, "the routing key", "key");
+
+    if (c_command_line_parse(cmdline, argc, argv) == -1)
+        rmqu_die("%s", c_get_error());
+
+    queue = c_command_line_argument_value(cmdline, 0);
+    exchange = c_command_line_argument_value(cmdline, 1);
+    routing_key = c_command_line_argument_value(cmdline, 2);
+
+    /* Main */
+    rmq_client_bind_queue(rmqu.client, queue, exchange, routing_key, NULL);
+    rmq_client_disconnect(rmqu.client);
+
+    c_command_line_delete(cmdline);
+}
+
+static void
+rmqu_cmd_unbind_queue(int argc, char **argv) {
+    struct c_command_line *cmdline;
+    const char *queue, *exchange, *routing_key;
+
+    /* Command line */
+    cmdline = c_command_line_new();
+
+    c_command_line_add_argument(cmdline, "the name of the queue", "queue");
+    c_command_line_add_argument(cmdline, "the name of the exchange",
+                                "exchange");
+    c_command_line_add_argument(cmdline, "the routing key", "key");
+
+    if (c_command_line_parse(cmdline, argc, argv) == -1)
+        rmqu_die("%s", c_get_error());
+
+    queue = c_command_line_argument_value(cmdline, 0);
+    exchange = c_command_line_argument_value(cmdline, 1);
+    routing_key = c_command_line_argument_value(cmdline, 2);
+
+    /* Main */
+    rmq_client_unbind_queue(rmqu.client, queue, exchange, routing_key, NULL);
     rmq_client_disconnect(rmqu.client);
 
     c_command_line_delete(cmdline);
