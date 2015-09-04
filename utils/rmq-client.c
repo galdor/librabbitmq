@@ -33,6 +33,8 @@ struct rmqu {
     void (*cmd_exec)(int, char **);
     int argc;
     char **argv;
+
+    bool error;
 };
 
 static struct rmqu rmqu;
@@ -208,7 +210,7 @@ main(int argc, char **argv) {
     io_base_delete(rmqu.io_base);
 
     c_command_line_delete(cmdline);
-    return 0;
+    return rmqu.error ? 1 : 0;
 }
 
 void
@@ -275,6 +277,7 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
     case RMQ_CLIENT_EVENT_CONN_FAILED:
         rmqu_trace("connection failed");
         rmqu.do_exit = true;
+        rmqu.error = true;
         break;
 
     case RMQ_CLIENT_EVENT_CONN_CLOSED:
@@ -289,6 +292,7 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
 
     case RMQ_CLIENT_EVENT_ERROR:
         rmqu_error("%s", (const char *)data);
+        rmqu.error = true;
         break;
 
     case RMQ_CLIENT_EVENT_TRACE:
