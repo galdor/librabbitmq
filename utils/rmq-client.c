@@ -62,12 +62,16 @@ struct rmqu_cmd {
     void (*exec)(int, char **);
 };
 
+static void rmqu_cmd_declare_exchange(int, char **);
+static void rmqu_cmd_delete_exchange(int, char **);
 static void rmqu_cmd_declare_queue(int, char **);
 static void rmqu_cmd_delete_queue(int, char **);
 
 static struct rmqu_cmd rmqu_cmds[] = {
+    {"declare-exchange", rmqu_cmd_declare_exchange},
+    {"delete-exchange", rmqu_cmd_delete_exchange},
     {"declare-queue", rmqu_cmd_declare_queue},
-    {"delete-queue",  rmqu_cmd_delete_queue},
+    {"delete-queue", rmqu_cmd_delete_queue},
 };
 size_t rmqu_nb_cmds = sizeof(rmqu_cmds) / sizeof(rmqu_cmds[0]);
 
@@ -85,6 +89,10 @@ main(int argc, char **argv) {
     c_command_line_set_trailing_text(cmdline, "COMMANDS\n\n"
                                      "help                   "
                                      "  display help\n"
+                                     "declare-exchange       "
+                                     "  create an exchange\n"
+                                     "delete-exchange        "
+                                     "  delete an exchange\n"
                                      "declare-queue          "
                                      "  create a queue\n"
                                      "delete-queue           "
@@ -312,6 +320,97 @@ rmqu_on_undeliverable_msg(struct rmq_client *client,
     text = rmq_delivery_undeliverable_reply_text(delivery);
 
     rmqu_error("message cannot be delivered: %s", text);
+}
+
+static void
+rmqu_cmd_declare_exchange(int argc, char **argv) {
+    struct c_command_line *cmdline;
+    enum rmq_exchange_type type;
+    const char *type_string, *name;
+    bool passive, durable, auto_delete, internal;
+    uint8_t options;
+
+    /* Command line */
+    cmdline = c_command_line_new();
+
+    c_command_line_add_flag(cmdline, "p", "passive",
+                            "create a passive exchange");
+    c_command_line_add_flag(cmdline, "d", "durable",
+                            "create a durable exchange");
+    c_command_line_add_flag(cmdline, "a", "auto-delete",
+                            "automatically delete the exchange when all "
+                            "queues have finished using it");
+    c_command_line_add_flag(cmdline, "i", "internal",
+                            "create an internal exchange");
+
+    c_command_line_add_argument(cmdline, "the name of the exchange", "name");
+    c_command_line_add_argument(cmdline, "the type of the exchange", "type");
+
+    if (c_command_line_parse(cmdline, argc, argv) == -1)
+        rmqu_die("%s", c_get_error());
+
+    passive = c_command_line_is_option_set(cmdline, "passive");
+    durable = c_command_line_is_option_set(cmdline, "durable");
+    auto_delete = c_command_line_is_option_set(cmdline, "auto-delete");
+    internal = c_command_line_is_option_set(cmdline, "internal");
+
+    name = c_command_line_argument_value(cmdline, 0);
+    type_string = c_command_line_argument_value(cmdline, 1);
+
+    if (rmq_exchange_type_parse(type_string, &type) == -1)
+        rmqu_die("unknown exchange type");
+
+    /* Main */
+    options = RMQ_EXCHANGE_DEFAULT;
+
+    if (passive)
+        options |= RMQ_EXCHANGE_PASSIVE;
+    if (durable)
+        options |= RMQ_EXCHANGE_DURABLE;
+    if (auto_delete)
+        options |= RMQ_EXCHANGE_AUTO_DELETE;
+    if (internal)
+        options |= RMQ_EXCHANGE_INTERNAL;
+
+    rmq_client_declare_exchange(rmqu.client, name, type, options, NULL);
+    rmq_client_disconnect(rmqu.client);
+
+    c_command_line_delete(cmdline);
+}
+
+static void
+rmqu_cmd_delete_exchange(int argc, char **argv) {
+    struct c_command_line *cmdline;
+    bool if_unused;
+    const char *name;
+    uint8_t options;
+
+    /* Command line */
+    cmdline = c_command_line_new();
+
+    c_command_line_add_flag(cmdline, "u", "if-unused",
+                            "only delete the exchange if it has no queue "
+                            "bindings");
+
+    c_command_line_add_argument(cmdline, "the name of the exchange", "name");
+
+    if (c_command_line_parse(cmdline, argc, argv) == -1)
+        rmqu_die("%s", c_get_error());
+
+    if_unused = c_command_line_is_option_set(cmdline, "if-unused");
+
+    name = c_command_line_argument_value(cmdline, 0);
+
+    /* Main */
+    options = RMQ_EXCHANGE_DELETE_DEFAULT;
+
+    if (if_unused)
+        options |= RMQ_EXCHANGE_DELETE_IF_UNUSED;
+
+    rmq_client_delete_exchange(rmqu.client, name, options);
+    rmq_client_disconnect(rmqu.client);
+
+    c_command_line_delete(cmdline);
 }
 
 static void

@@ -497,6 +497,81 @@ rmq_client_unsubscribe(struct rmq_client *client, const char *queue) {
                            RMQ_FIELD_END);
 }
 
+int
+rmq_exchange_type_parse(const char *string, enum rmq_exchange_type *ptype) {
+    if (strcmp(string, "direct") == 0) {
+        *ptype = RMQ_EXCHANGE_TYPE_DIRECT;
+    } else if (strcmp(string, "fanout") == 0) {
+        *ptype = RMQ_EXCHANGE_TYPE_FANOUT;
+    } else if (strcmp(string, "topic") == 0) {
+        *ptype = RMQ_EXCHANGE_TYPE_TOPIC;
+    } else if (strcmp(string, "headers") == 0) {
+        *ptype = RMQ_EXCHANGE_TYPE_HEADERS;
+    } else {
+        return -1;
+    }
+
+    return 0;
+}
+
+const char *
+rmq_exchange_type_to_string(enum rmq_exchange_type type) {
+    switch (type) {
+    case RMQ_EXCHANGE_TYPE_DIRECT:
+        return "direct";
+    case RMQ_EXCHANGE_TYPE_FANOUT:
+        return "fanout";
+    case RMQ_EXCHANGE_TYPE_TOPIC:
+        return "topic";
+    case RMQ_EXCHANGE_TYPE_HEADERS:
+        return "headers";
+    }
+
+    return NULL;
+}
+
+void
+rmq_client_declare_exchange(struct rmq_client *client, const char *name,
+                            enum rmq_exchange_type type, uint8_t options,
+                            const struct rmq_field_table *args) {
+    struct rmq_field_table *empty_table;
+    const char *type_string;
+
+    type_string = rmq_exchange_type_to_string(type);
+    assert(type_string);
+
+    options |= 0x10; /* no-wait */
+
+    if (args) {
+        empty_table = NULL;
+    } else {
+        empty_table = rmq_field_table_new();
+        args = empty_table;
+    }
+
+    rmq_client_send_method(client, RMQ_METHOD_EXCHANGE_DECLARE,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, name,
+                           RMQ_FIELD_SHORT_STRING, type_string,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
+                           RMQ_FIELD_TABLE, args,
+                           RMQ_FIELD_END);
+
+    rmq_field_table_delete(empty_table);
+}
+
+void
+rmq_client_delete_exchange(struct rmq_client *client, const char *name,
+                           uint8_t options) {
+    options |= 0x02; /* no-wait */
+
+    rmq_client_send_method(client, RMQ_METHOD_EXCHANGE_DELETE,
+                           RMQ_FIELD_SHORT_UINT, 0, /* reserved */
+                           RMQ_FIELD_SHORT_STRING, name,
+                           RMQ_FIELD_SHORT_SHORT_UINT, options,
+                           RMQ_FIELD_END);
+}
+
 void
 rmq_client_declare_queue(struct rmq_client *client, const char *name,
                          uint8_t options, const struct rmq_field_table *args) {

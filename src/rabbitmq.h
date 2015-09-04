@@ -254,6 +254,36 @@ void rmq_client_ack(struct rmq_client *, uint64_t);
 void rmq_client_reject(struct rmq_client *, uint64_t);
 void rmq_client_requeue(struct rmq_client *, uint64_t);
 
+/* Exchanges */
+enum rmq_exchange_type {
+    RMQ_EXCHANGE_TYPE_DIRECT,
+    RMQ_EXCHANGE_TYPE_FANOUT,
+    RMQ_EXCHANGE_TYPE_TOPIC,
+    RMQ_EXCHANGE_TYPE_HEADERS,
+};
+
+int rmq_exchange_type_parse(const char *, enum rmq_exchange_type *);
+const char *rmq_exchange_type_to_string(enum rmq_exchange_type);
+
+enum rmq_exchange_option {
+    RMQ_EXCHANGE_DEFAULT     = 0x00,
+    RMQ_EXCHANGE_PASSIVE     = 0x01,
+    RMQ_EXCHANGE_DURABLE     = 0x02,
+    RMQ_EXCHANGE_AUTO_DELETE = 0x04,
+    RMQ_EXCHANGE_INTERNAL    = 0x08,
+};
+
+void rmq_client_declare_exchange(struct rmq_client *, const char *,
+                                 enum rmq_exchange_type, uint8_t,
+                                 const struct rmq_field_table *);
+
+enum rmq_exchange_delete_option {
+    RMQ_EXCHANGE_DELETE_DEFAULT   = 0x00,
+    RMQ_EXCHANGE_DELETE_IF_UNUSED = 0x01,
+};
+
+void rmq_client_delete_exchange(struct rmq_client *, const char *, uint8_t);
+
 /* Queues */
 enum rmq_queue_option {
     RMQ_QUEUE_DEFAULT     = 0x00,
