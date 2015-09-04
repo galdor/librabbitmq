@@ -1206,6 +1206,10 @@ RMQ_METHOD_HANDLER(basic_return) {
     return 0;
 }
 
+RMQ_METHOD_HANDLER(queue_unbind_ok) {
+    return 0;
+}
+
 #undef RMQ_METHOD_HANDLER
 
 /* ---------------------------------------------------------------------------
@@ -1258,6 +1262,8 @@ rmq_client_on_method(struct rmq_client *client,
 
     RMQ_HANDLER(BASIC_DELIVER, basic_deliver);
     RMQ_HANDLER(BASIC_RETURN, basic_return);
+
+    RMQ_HANDLER(QUEUE_UNBIND_OK, queue_unbind_ok);
 
 #undef RMQ_HANDLER
 
