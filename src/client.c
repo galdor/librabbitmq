@@ -425,6 +425,9 @@ void
 rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
                    const char *exchange,
                    const char *routing_key, uint32_t options) {
+    if (!routing_key)
+        routing_key = "";
+
     rmq_client_send_method(client, RMQ_METHOD_BASIC_PUBLISH,
                            RMQ_FIELD_SHORT_UINT, 0, /* reserved */
                            RMQ_FIELD_SHORT_STRING, exchange,
@@ -624,6 +627,9 @@ rmq_client_bind_queue(struct rmq_client *client, const char *queue,
         args = empty_table;
     }
 
+    if (!routing_key)
+        routing_key = "";
+
     rmq_client_send_method(client, RMQ_METHOD_QUEUE_BIND,
                            RMQ_FIELD_SHORT_UINT, 0, /* reserved */
                            RMQ_FIELD_SHORT_STRING, queue,
@@ -648,6 +654,9 @@ rmq_client_unbind_queue(struct rmq_client *client, const char *queue,
         empty_table = rmq_field_table_new();
         args = empty_table;
     }
+
+    if (!routing_key)
+        routing_key = "";
 
     rmq_client_send_method(client, RMQ_METHOD_QUEUE_UNBIND,
                            RMQ_FIELD_SHORT_UINT, 0, /* reserved */

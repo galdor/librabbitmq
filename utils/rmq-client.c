@@ -513,17 +513,19 @@ rmqu_cmd_bind_queue(int argc, char **argv) {
     /* Command line */
     cmdline = c_command_line_new();
 
+    c_command_line_add_option(cmdline, "k", "routing-key",
+                              "the routing key", "key", "");
+
     c_command_line_add_argument(cmdline, "the name of the queue", "queue");
     c_command_line_add_argument(cmdline, "the name of the exchange",
                                 "exchange");
-    c_command_line_add_argument(cmdline, "the routing key", "key");
 
     if (c_command_line_parse(cmdline, argc, argv) == -1)
         rmqu_die("%s", c_get_error());
 
     queue = c_command_line_argument_value(cmdline, 0);
     exchange = c_command_line_argument_value(cmdline, 1);
-    routing_key = c_command_line_argument_value(cmdline, 2);
+    routing_key = c_command_line_option_value(cmdline, "routing-key");
 
     /* Main */
     rmq_client_bind_queue(rmqu.client, queue, exchange, routing_key, NULL);
@@ -540,17 +542,19 @@ rmqu_cmd_unbind_queue(int argc, char **argv) {
     /* Command line */
     cmdline = c_command_line_new();
 
+    c_command_line_add_option(cmdline, "k", "routing-key",
+                              "the routing key", "key", "");
+
     c_command_line_add_argument(cmdline, "the name of the queue", "queue");
     c_command_line_add_argument(cmdline, "the name of the exchange",
                                 "exchange");
-    c_command_line_add_argument(cmdline, "the routing key", "key");
 
     if (c_command_line_parse(cmdline, argc, argv) == -1)
         rmqu_die("%s", c_get_error());
 
     queue = c_command_line_argument_value(cmdline, 0);
     exchange = c_command_line_argument_value(cmdline, 1);
-    routing_key = c_command_line_argument_value(cmdline, 2);
+    routing_key = c_command_line_option_value(cmdline, "routing-key");
 
     /* Main */
     rmq_client_unbind_queue(rmqu.client, queue, exchange, routing_key, NULL);
