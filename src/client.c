@@ -750,8 +750,6 @@ rmq_client_on_heartbeat_timer(int timer, uint64_t delay, void *arg) {
 
     client = arg;
 
-    rmq_client_trace(client, "sending heartbeat frame");
-
     rmq_client_send_frame(client, RMQ_FRAME_TYPE_HEARTBEAT, 0, NULL, 0);
 }
 
