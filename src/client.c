@@ -124,6 +124,10 @@ static void rmq_client_error(struct rmq_client *, const char *, ...)
 static void rmq_client_fatal(struct rmq_client *, const char *, ...)
     __attribute__ ((format(printf, 2, 3)));
 
+static int rmq_client_start_heartbeat(struct rmq_client *, uint16_t);
+static void rmq_client_stop_heartbeat(struct rmq_client *);
+static void rmq_client_on_heartbeat_timer(int, uint64_t, void *);
+
 static void rmq_client_on_tcp_event(struct io_tcp_client *,
                                     enum io_tcp_client_event,
                                     void *);
@@ -159,6 +163,8 @@ rmq_client_new(struct io_base *io_base) {
     client->consumers_by_tag = c_hash_table_new(c_hash_string, c_equal_string);
     client->consumers_by_queue = c_hash_table_new(c_hash_string,
                                                   c_equal_string);
+
+    client->heartbeat_timer = -1;
 
     return client;
 }
@@ -715,6 +721,40 @@ rmq_client_fatal(struct rmq_client *client, const char *fmt, ...) {
     io_tcp_client_disconnect(client->tcp_client);
 }
 
+static int
+rmq_client_start_heartbeat(struct rmq_client *client, uint16_t delay) {
+    int timer;
+
+    assert(client->heartbeat_timer == -1);
+
+    timer = io_base_add_timer(client->io_base, delay * 1000, IO_TIMER_RECURRENT,
+                              rmq_client_on_heartbeat_timer, client);
+    if (timer == -1)
+        return -1;
+
+    client->heartbeat_timer = timer;
+    return 0;
+}
+
+static void
+rmq_client_stop_heartbeat(struct rmq_client *client) {
+    if (client->heartbeat_timer >= 0) {
+        io_base_remove_timer(client->io_base, client->heartbeat_timer);
+        client->heartbeat_timer = -1;
+    }
+}
+
+static void
+rmq_client_on_heartbeat_timer(int timer, uint64_t delay, void *arg) {
+    struct rmq_client *client;
+
+    client = arg;
+
+    rmq_client_trace(client, "sending heartbeat frame");
+
+    rmq_client_send_frame(client, RMQ_FRAME_TYPE_HEARTBEAT, 0, NULL, 0);
+}
+
 static void
 rmq_client_on_tcp_event(struct io_tcp_client *tcp_client,
                         enum io_tcp_client_event event,
@@ -752,6 +792,8 @@ rmq_client_on_conn_closed(struct rmq_client *client) {
     struct rmq_consumer *consumer;
 
     client->state = RMQ_CLIENT_STATE_DISCONNECTED;
+
+    rmq_client_stop_heartbeat(client);
 
     it = c_hash_table_iterate(client->consumers_by_tag);
     while (c_hash_table_iterator_next(it, NULL, (void **)&consumer) == 1)
@@ -971,6 +1013,13 @@ RMQ_METHOD_HANDLER(connection_tune) {
                            RMQ_FIELD_END);
 
     client->state = RMQ_CLIENT_STATE_TUNE_RECEIVED;
+
+    if (heartbeat > 0) {
+        if (rmq_client_start_heartbeat(client, heartbeat) == -1) {
+            c_set_error("cannot setup heartbeat: %s", c_get_error());
+            return -1;
+        }
+    }
 
     /* Select a vhost */
     rmq_client_send_method(client, RMQ_METHOD_CONNECTION_OPEN,
