@@ -290,6 +290,14 @@ rmqu_on_client_event(struct rmq_client *client, enum rmq_client_event event,
         rmqu_on_client_ready();
         break;
 
+    case RMQ_CLIENT_EVENT_FLOW_ACTIVATED:
+        rmqu_trace("flow activated");
+        break;
+
+    case RMQ_CLIENT_EVENT_FLOW_DEACTIVATED:
+        rmqu_trace("flow deactivated");
+        break;
+
     case RMQ_CLIENT_EVENT_ERROR:
         rmqu_error("%s", (const char *)data);
         rmqu.error = true;

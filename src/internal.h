@@ -408,6 +408,8 @@ struct rmq_client {
     struct rmq_delivery current_delivery;
 
     int heartbeat_timer;
+
+    bool flow_active;
 };
 
 void rmq_client_send_frame(struct rmq_client *, enum rmq_frame_type,

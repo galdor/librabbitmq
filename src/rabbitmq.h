@@ -189,6 +189,8 @@ enum rmq_client_event {
     RMQ_CLIENT_EVENT_CONN_FAILED,
     RMQ_CLIENT_EVENT_CONN_CLOSED,
     RMQ_CLIENT_EVENT_READY,
+    RMQ_CLIENT_EVENT_FLOW_ACTIVATED,
+    RMQ_CLIENT_EVENT_FLOW_DEACTIVATED,
 
     RMQ_CLIENT_EVENT_ERROR,
     RMQ_CLIENT_EVENT_TRACE,
@@ -228,6 +230,9 @@ int rmq_client_reconnect(struct rmq_client *);
 bool rmq_client_is_ready(const struct rmq_client *);
 
 /* Base */
+void rmq_client_toggle_flow(struct rmq_client *, bool);
+bool rmq_client_is_flow_active(const struct rmq_client *);
+
 enum rmq_publish_option {
     RMQ_PUBLISH_DEFAULT   = 0x00,
     RMQ_PUBLISH_MANDATORY = 0x01,

@@ -428,6 +428,24 @@ rmq_client_requeue(struct rmq_client *client, uint64_t tag) {
 }
 
 void
+rmq_client_toggle_flow(struct rmq_client *client, bool active) {
+    uint8_t value;
+
+    value = 0x00;
+    if (active)
+        value |= 0x01;
+
+    rmq_client_send_method(client, RMQ_METHOD_CHANNEL_FLOW,
+                           RMQ_FIELD_SHORT_SHORT_UINT, value,
+                           RMQ_FIELD_END);
+}
+
+bool
+rmq_client_is_flow_active(const struct rmq_client *client) {
+    return client->flow_active;
+}
+
+void
 rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
                    const char *exchange,
                    const char *routing_key, uint32_t options) {
@@ -791,6 +809,8 @@ rmq_client_on_conn_closed(struct rmq_client *client) {
 
     client->state = RMQ_CLIENT_STATE_DISCONNECTED;
 
+    client->flow_active = false;
+
     rmq_client_stop_heartbeat(client);
 
     it = c_hash_table_iterate(client->consumers_by_tag);
@@ -1090,11 +1110,12 @@ RMQ_METHOD_HANDLER(connection_close) {
 }
 
 RMQ_METHOD_HANDLER(connection_close_ok) {
-
     if (client->state != RMQ_CLIENT_STATE_CLOSING) {
         c_set_error("unexpected method");
         return -1;
     }
+
+    client->flow_active = false;
 
     io_tcp_client_disconnect(client->tcp_client);
     return 0;
@@ -1105,6 +1126,8 @@ RMQ_METHOD_HANDLER(channel_open_ok) {
         c_set_error("unexpected method");
         return -1;
     }
+
+    client->flow_active = true;
 
     client->state = RMQ_CLIENT_STATE_READY;
     rmq_client_signal_event(client, RMQ_CLIENT_EVENT_READY, NULL);
@@ -1156,6 +1179,36 @@ RMQ_METHOD_HANDLER(channel_close) {
                            RMQ_FIELD_END);
 
     rmq_client_disconnect(client);
+    return 0;
+}
+
+RMQ_METHOD_HANDLER(channel_flow_ok) {
+    enum rmq_client_event event;
+    uint8_t value;
+    bool active;
+
+    if (rmq_fields_read(data, size, NULL,
+                        RMQ_FIELD_SHORT_SHORT_UINT, &value,
+                        RMQ_FIELD_END) == -1) {
+        /* TODO error 505 */
+        c_set_error("invalid arguments: %s", c_get_error());
+        return -1;
+    }
+
+    active = (value & 0x01);
+
+    if (active != client->flow_active) {
+        if (active) {
+            event = RMQ_CLIENT_EVENT_FLOW_DEACTIVATED;
+        } else {
+            event = RMQ_CLIENT_EVENT_FLOW_ACTIVATED;
+        }
+
+        client->flow_active = active;
+
+        rmq_client_signal_event(client, event, NULL);
+    }
+
     return 0;
 }
 
@@ -1315,6 +1368,7 @@ rmq_client_on_method(struct rmq_client *client,
 
     RMQ_HANDLER(CHANNEL_OPEN_OK, channel_open_ok);
     RMQ_HANDLER(CHANNEL_CLOSE, channel_close);
+    RMQ_HANDLER(CHANNEL_FLOW_OK, channel_flow_ok);
 
     RMQ_HANDLER(BASIC_DELIVER, basic_deliver);
     RMQ_HANDLER(BASIC_RETURN, basic_return);
