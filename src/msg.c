@@ -198,6 +198,9 @@ rmq_msg_content_encoding(const struct rmq_msg *msg) {
 
 struct rmq_field *
 rmq_msg_header(const struct rmq_msg *msg, const char *name) {
+    if (!msg->properties.headers)
+        return NULL;
+
     return rmq_field_table_get(msg->properties.headers, name);
 }
 
