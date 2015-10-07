@@ -291,6 +291,124 @@ rmq_field_new_no_value(void) {
     return rmq_field_new(RMQ_FIELD_NO_VALUE);
 }
 
+enum rmq_field_type
+rmq_field_type(const struct rmq_field *field) {
+    return field->type;
+}
+
+bool
+rmq_field_boolean_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_BOOLEAN);
+
+    return field->u.boolean;
+}
+
+int8_t
+rmq_field_short_short_int_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_SHORT_SHORT_INT);
+
+    return field->u.short_short_int;
+}
+
+uint8_t
+rmq_field_short_short_uint_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_SHORT_SHORT_UINT);
+
+    return field->u.short_short_uint;
+}
+
+int16_t
+rmq_field_short_int_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_SHORT_INT);
+
+    return field->u.short_int;
+}
+
+uint16_t
+rmq_field_short_uint_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_SHORT_UINT);
+
+    return field->u.short_uint;
+}
+
+int32_t
+rmq_field_long_int_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_LONG_INT);
+
+    return field->u.long_int;
+}
+
+uint32_t
+rmq_field_long_uint_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_LONG_UINT);
+
+    return field->u.long_uint;
+}
+
+int64_t
+rmq_field_long_long_int_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_LONG_LONG_INT);
+
+    return field->u.long_long_int;
+}
+
+uint64_t
+rmq_field_long_long_uint_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_LONG_LONG_UINT);
+
+    return field->u.long_long_uint;
+}
+
+float
+rmq_field_float_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_FLOAT);
+
+    return field->u.float_value;
+}
+
+double
+rmq_field_double_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_DOUBLE);
+
+    return field->u.double_value;
+}
+
+const char *
+rmq_field_short_string_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_SHORT_STRING);
+
+    return field->u.short_string;
+}
+
+const void *
+rmq_field_long_string_value(const struct rmq_field *field, size_t *psz) {
+    assert(field->type == RMQ_FIELD_LONG_STRING);
+
+    *psz = field->u.long_string.len;
+    return field->u.long_string.ptr;
+}
+
+struct c_ptr_vector *
+rmq_field_array_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_ARRAY);
+
+    return field->u.array;
+}
+
+uint64_t
+rmq_field_timestamp_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_TIMESTAMP);
+
+    return field->u.timestamp;
+}
+
+struct
+rmq_field_table *rmq_field_table_value(const struct rmq_field *field) {
+    assert(field->type == RMQ_FIELD_TABLE);
+
+    return field->u.table;
+}
+
 int
 rmq_field_read_boolean(const void *data, size_t size,
                        bool *pvalue, size_t *psz) {

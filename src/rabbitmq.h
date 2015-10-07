@@ -78,6 +78,25 @@ struct rmq_field *rmq_field_new_timestamp(uint64_t);
 struct rmq_field *rmq_field_new_table(void);
 struct rmq_field *rmq_field_new_no_value(void);
 
+enum rmq_field_type rmq_field_type(const struct rmq_field *);
+
+bool rmq_field_boolean_value(const struct rmq_field *);
+int8_t rmq_field_short_short_int_value(const struct rmq_field *);
+uint8_t rmq_field_short_short_uint_value(const struct rmq_field *);
+int16_t rmq_field_short_int_value(const struct rmq_field *);
+uint16_t rmq_field_short_uint_value(const struct rmq_field *);
+int32_t rmq_field_long_int_value(const struct rmq_field *);
+uint32_t rmq_field_long_uint_value(const struct rmq_field *);
+int64_t rmq_field_long_long_int_value(const struct rmq_field *);
+uint64_t rmq_field_long_long_uint_value(const struct rmq_field *);
+float rmq_field_float_value(const struct rmq_field *);
+double rmq_field_double_value(const struct rmq_field *);
+const char *rmq_field_short_string_value(const struct rmq_field *);
+const void *rmq_field_long_string_value(const struct rmq_field *, size_t *);
+struct c_ptr_vector *rmq_field_array_value(const struct rmq_field *);
+uint64_t rmq_field_timestamp_value(const struct rmq_field *);
+struct rmq_field_table *rmq_field_table_value(const struct rmq_field *);
+
 /* ---------------------------------------------------------------------------
  *  Protocol
  * ------------------------------------------------------------------------ */
