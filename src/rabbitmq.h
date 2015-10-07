@@ -212,6 +212,8 @@ typedef enum rmq_msg_action (*rmq_msg_cb)(struct rmq_client *,
 typedef void (*rmq_undeliverable_msg_cb)(struct rmq_client *,
                                          const struct rmq_delivery *,
                                          const struct rmq_msg *, void *);
+typedef void (*rmq_sent_msg_cb)(struct rmq_client *, struct rmq_msg *,
+                                const char *, const char *, void *);
 
 struct rmq_client *rmq_client_new(struct io_base *);
 void rmq_client_delete(struct rmq_client *);
@@ -219,6 +221,8 @@ void rmq_client_delete(struct rmq_client *);
 void rmq_client_set_event_cb(struct rmq_client *, rmq_client_event_cb, void *);
 void rmq_client_set_undeliverable_msg_cb(struct rmq_client *,
                                          rmq_undeliverable_msg_cb, void *);
+void rmq_client_set_sent_msg_cb(struct rmq_client *, rmq_sent_msg_cb, void *);
+
 void rmq_client_set_credentials(struct rmq_client *,
                                 const char *, const char *);
 void rmq_client_set_vhost(struct rmq_client *, const char *);

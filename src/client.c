@@ -209,6 +209,13 @@ rmq_client_set_undeliverable_msg_cb(struct rmq_client *client,
 }
 
 void
+rmq_client_set_sent_msg_cb(struct rmq_client *client,
+                           rmq_sent_msg_cb cb, void *arg) {
+    client->sent_msg_cb = cb;
+    client->sent_msg_cb_arg = arg;
+}
+
+void
 rmq_client_set_credentials(struct rmq_client *client,
                            const char *login, const char *password) {
     c_free(client->login);
@@ -447,10 +454,15 @@ rmq_client_is_flow_active(const struct rmq_client *client) {
 
 void
 rmq_client_publish(struct rmq_client *client, struct rmq_msg *msg,
-                   const char *exchange,
-                   const char *routing_key, uint32_t options) {
+                   const char *exchange, const char *routing_key,
+                   uint32_t options) {
     if (!routing_key)
         routing_key = "";
+
+    if (client->sent_msg_cb) {
+        client->sent_msg_cb(client, msg, exchange, routing_key,
+                            client->sent_msg_cb_arg);
+    }
 
     rmq_client_send_method(client, RMQ_METHOD_BASIC_PUBLISH,
                            RMQ_FIELD_SHORT_UINT, 0, /* reserved */

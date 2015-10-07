@@ -394,6 +394,9 @@ struct rmq_client {
     rmq_undeliverable_msg_cb undeliverable_msg_cb;
     void *undeliverable_msg_cb_arg;
 
+    rmq_sent_msg_cb sent_msg_cb;
+    void *sent_msg_cb_arg;
+
     char *login;
     char *password;
     char *vhost;
