@@ -197,16 +197,16 @@ rmq_msg_content_encoding(const struct rmq_msg *msg) {
 }
 
 struct rmq_field *
-rmq_msg_content_header(const struct rmq_msg *msg, const char *name) {
+rmq_msg_header(const struct rmq_msg *msg, const char *name) {
     return rmq_field_table_get(msg->properties.headers, name);
 }
 
-enum rmq_delivery_mode 
+enum rmq_delivery_mode
 rmq_msg_delivery_mode(const struct rmq_msg *msg) {
     return msg->properties.delivery_mode;
 }
 
-uint8_t 
+uint8_t
 rmq_msg_priority(const struct rmq_msg *msg) {
     return msg->properties.priority;
 }

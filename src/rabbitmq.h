@@ -148,7 +148,7 @@ void rmq_msg_delete(struct rmq_msg *);
 
 const char *rmq_msg_content_type(const struct rmq_msg *);
 const char *rmq_msg_content_encoding(const struct rmq_msg *);
-struct rmq_field *rmq_msg_content_header(const struct rmq_msg *, const char *);
+struct rmq_field *rmq_msg_header(const struct rmq_msg *, const char *);
 enum rmq_delivery_mode rmq_msg_delivery_mode(const struct rmq_msg *);
 uint8_t rmq_msg_priority(const struct rmq_msg *);
 const char *rmq_msg_correlation_id(const struct rmq_msg *);
